@@ -1,9 +1,10 @@
+<!-- Version: 3.0 -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>نُــهـل</title>
+<title>حلّل محصول قهوتك</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -44,7 +45,7 @@
   }
   .ca-stage video, .ca-stage canvas, .ca-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .ca-stage.empty::before {
-    content: "فــعّـل الكمرا "; position: absolute; inset: 0;
+    content: "لا توجد كاميرا مفعّلة"; position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center; color: #8a7862; font-size: 13px;
   }
   canvas.hidden { display: none; }
@@ -60,6 +61,16 @@
   .ca-btn.secondary { background: transparent; color: var(--ink); }
 
   .ca-divider { border: none; border-top: 1px solid var(--line); margin: 26px 0 20px; }
+
+  /* Cup count selector */
+  .ca-cup-select { margin-bottom: 20px; }
+  .ca-cup-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
+  .ca-cup-options { display: flex; gap: 8px; }
+  .ca-cup-btn {
+    flex: 1; padding: 12px 8px; border: 1.5px solid var(--line); border-radius: 6px;
+    background: #fff; cursor: pointer; font-size: 18px; text-align: center; transition: all .15s;
+  }
+  .ca-cup-btn.active { border-color: var(--gold); background: #FBF4E3; }
 
   /* Grinder selector */
   .ca-grinder-select { margin-bottom: 20px; }
@@ -77,7 +88,7 @@
   }
 
   /* Hot/Cold selector */
-  .ca-temp-select { margin-bottom: 20px; }
+  .ca-temp-select { margin-bottom: 8px; }
   .ca-temp-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
   .ca-temp-options { display: flex; gap: 10px; }
   .ca-temp-card {
@@ -88,6 +99,7 @@
   .ca-temp-card.active-cold { border-color: var(--cold); background: #E7F2F3; }
   .ca-temp-card-title { font-weight: 700; font-size: 15px; }
   .ca-temp-card-sub { font-size: 11px; color: #8a7862; margin-top: 3px; }
+  .ca-temp-warning { font-size: 12.5px; color: var(--error); margin: 8px 0 12px; }
 
   .ca-ticket { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 20px; }
   .ca-ticket-label {
@@ -118,10 +130,15 @@
   .ca-pours-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--ink); }
   .ca-pours-track { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
   .ca-pour-cell {
-    flex: 1; border-left: 1px solid var(--line); padding: 10px 6px; text-align: center; background: #fff;
+    flex: 1; border-left: 1px solid var(--line); padding: 0 6px 10px; text-align: center; background: #fff;
+    display: flex; flex-direction: column;
   }
   .ca-pour-cell:last-child { border-left: none; }
-  .ca-pour-num { font-family: 'Courier New', monospace; font-size: 10px; color: var(--gold); letter-spacing: .5px; margin-bottom: 4px; }
+  .ca-pour-num {
+    font-family: 'Courier New', monospace; font-size: 10px; color: var(--gold); letter-spacing: .5px;
+    min-height: 30px; display: flex; align-items: center; justify-content: center;
+    border-bottom: 1px solid var(--line); padding: 8px 2px; margin-bottom: 8px;
+  }
   .ca-pour-amt { font-size: 13px; font-weight: 700; }
   .ca-pour-time { font-size: 10px; color: #8a7862; margin-top: 2px; }
 
@@ -134,6 +151,14 @@
     font-family: 'Courier New', monospace; font-size: 10px; color: #9a8b74;
     text-align: center; margin-top: 20px; line-height: 1.6;
   }
+
+  /* Rating */
+  .ca-rating-block { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .ca-rating-label { font-size: 13px; color: #4a3b2c; margin-bottom: 8px; }
+  .ca-stars { font-size: 26px; display: flex; gap: 4px; cursor: pointer; }
+  .ca-star { color: var(--line); transition: color .1s; }
+  .ca-star.filled { color: var(--gold); }
+  .ca-rating-thanks { font-size: 12.5px; color: #6b5a4a; margin-top: 6px; }
 </style>
 <script type="text/babel">
 const { useState, useRef } = React;
@@ -151,8 +176,10 @@ const GRINDERS = {
 };
 
 function CoffeeApp() {
-  const [temp, setTemp] = useState("hot"); // hot | cold
-  const [grinderMode, setGrinderMode] = useState("none"); // list | custom | none
+  const [cupCount, setCupCount] = useState(1);
+  const [temp, setTemp] = useState(null);
+  const [tempWarning, setTempWarning] = useState(false);
+  const [grinderMode, setGrinderMode] = useState("list");
   const [grinderBrand, setGrinderBrand] = useState("");
   const [grinderModel, setGrinderModel] = useState("");
   const [grinderCustom, setGrinderCustom] = useState("");
@@ -161,9 +188,13 @@ function CoffeeApp() {
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
   const [errMsg, setErrMsg] = useState("");
-  const [openWhy, setOpenWhy] = useState(null); // which metric's explanation is open
+  const [openWhy, setOpenWhy] = useState(null);
   const [roasteryInput, setRoasteryInput] = useState("");
   const [saved, setSaved] = useState(false);
+  const [savedBeansId, setSavedBeansId] = useState(null);
+  const [savedRoasteryId, setSavedRoasteryId] = useState(null);
+  const [rating, setRating] = useState(0);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -198,17 +229,24 @@ function CoffeeApp() {
   const retake = () => { setCaptured(null); setResult(null); startCamera(); };
 
   const analyze = async () => {
+    if (!temp) {
+      setTempWarning(true);
+      return;
+    }
+    setTempWarning(false);
     setStatus("loading");
     setOpenWhy(null);
     try {
       const base64Data = captured.split(",")[1];
-
-      // الموقع يتصل بسيرفرنا الخاص (/api/analyze) وليس بـ Anthropic مباشرة.
-      // مفتاح الـ API يبقى مخفيًا بالكامل على السيرفر ولا يظهر أبدًا في المتصفح.
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64Data, tempChoice: temp, grinderInfo: grinderInfoLabel || null })
+        body: JSON.stringify({
+          imageBase64: base64Data,
+          tempChoice: temp,
+          grinderInfo: grinderInfoLabel || null,
+          cupCount
+        })
       });
 
       if (!response.ok) {
@@ -218,10 +256,13 @@ function CoffeeApp() {
       const parsed = await response.json();
       setResult(parsed);
       setSaved(false);
+      setSavedBeansId(null);
+      setSavedRoasteryId(null);
       setRoasteryInput("");
+      setRating(0);
+      setRatingSubmitted(false);
       setStatus("done");
 
-      // لو الموديل تعرّف على اسم المحمصة من الصورة، نسجل البحث فورًا
       if (parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== "") {
         recordSearch(parsed, parsed.roastery_name);
       }
@@ -233,7 +274,7 @@ function CoffeeApp() {
 
   const recordSearch = async (parsedResult, roasteryName) => {
     try {
-      await fetch("/api/record", {
+      const res = await fetch("/api/record", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -244,10 +285,27 @@ function CoffeeApp() {
           roasteryName
         })
       });
+      const data = await res.json();
       setSaved(true);
+      if (data.beansId) setSavedBeansId(data.beansId);
+      if (data.roasteryId) setSavedRoasteryId(data.roasteryId);
     } catch (e) {
-      // فشل التسجيل ما يوقف تجربة المستخدم — فقط ما يدخل بالإحصائيات
       console.error("record failed", e);
+    }
+  };
+
+  const submitRating = async (stars) => {
+    setRating(stars);
+    if (!savedBeansId) return;
+    try {
+      await fetch("/api/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: stars })
+      });
+      setRatingSubmitted(true);
+    } catch (e) {
+      console.error("rating failed", e);
     }
   };
 
@@ -255,20 +313,22 @@ function CoffeeApp() {
 
   return (
     <div className="ca-wrap">
-      <div className="ca-eyebrow">نموذج أولي · تجربة  </div>
-      <h1 className="ca-title">حلّل محصول قهوتك وتعلّم تحضيرة</h1>
-      <p className="ca-sub">صوّر ملصق القهوة.</p>
+      <div className="ca-eyebrow">نموذج أولي · تجربة حية · تعليمي</div>
+      <h1 className="ca-title">حلّل محصول قهوتك وتعلّم أسبابه</h1>
+      <p className="ca-sub">صوّر حبوب القهوة، اختر طريقة التحضير، وشوف مو بس الأرقام — بل السبب وراء كل رقم.</p>
 
-      <div className="ca-temp-select">
-        <div className="ca-temp-label">طريقة التحضير</div>
-        <div className="ca-temp-options">
-          <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => setTemp("hot")}>
-            <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>قهوة حارة</div>
-          </div>
-          <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => setTemp("cold")}>
-            <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
-            <div className="ca-temp-card-sub">  </div>
-          </div>
+      <div className="ca-cup-select">
+        <div className="ca-cup-label">كم كوب تبي تحضّر؟</div>
+        <div className="ca-cup-options">
+          {[1, 2, 3].map(n => (
+            <button
+              key={n}
+              className={`ca-cup-btn ${cupCount === n ? "active" : ""}`}
+              onClick={() => setCupCount(n)}
+            >
+              {"☕️".repeat(n)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -305,6 +365,21 @@ function CoffeeApp() {
         )}
       </div>
 
+      <div className="ca-temp-select">
+        <div className="ca-temp-label">طريقة التحضير</div>
+        <div className="ca-temp-options">
+          <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => { setTemp("hot"); setTempWarning(false); }}>
+            <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>قهوة حارة</div>
+            <div className="ca-temp-card-sub">V60 ساخن</div>
+          </div>
+          <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => { setTemp("cold"); setTempWarning(false); }}>
+            <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
+            <div className="ca-temp-card-sub">V60 مثلّج (Iced V60)</div>
+          </div>
+        </div>
+        {tempWarning && <div className="ca-temp-warning">اختار نوع التحضير</div>}
+      </div>
+
       <div className={`ca-stage ${!stream && !captured ? "empty" : ""}`}>
         {stream && <video ref={videoRef} autoPlay playsInline muted />}
         {captured && <img src={captured} alt="القهوة الملتقطة" />}
@@ -312,7 +387,7 @@ function CoffeeApp() {
       <canvas ref={canvasRef} className="hidden" />
 
       {status === "idle" && (
-        <div className="ca-btnrow"><button className="ca-btn" onClick={startCamera}>تفعيل الكمرة</button></div>
+        <div className="ca-btnrow"><button className="ca-btn" onClick={startCamera}>تشغيل الكاميرا</button></div>
       )}
       {status === "camera" && (
         <div className="ca-btnrow">
@@ -345,20 +420,48 @@ function CoffeeApp() {
 
             <div className="ca-metrics">
               <div className="ca-metric">
+                <button className="ca-why-btn" onClick={() => toggleWhy("amount")}>؟</button>
+                <div className="ca-metric-val">{result.amount_grams}</div>
+                <div className="ca-metric-key">كمية البن المقترحة</div>
+              </div>
+              <div className="ca-metric">
                 <button className="ca-why-btn" onClick={() => toggleWhy("temp")}>؟</button>
                 <div className="ca-metric-val">{result.temperature_c}°</div>
                 <div className="ca-metric-key">درجة الحرارة (م)</div>
               </div>
+              {openWhy === "amount" && <div className="ca-why-box">{result.why_amount}</div>}
+              {openWhy === "temp" && <div className="ca-why-box">{result.why_temperature}</div>}
+
               <div className="ca-metric">
                 <button className="ca-why-btn" onClick={() => toggleWhy("pours")}>؟</button>
                 <div className="ca-metric-val">{result.pours_count}</div>
                 <div className="ca-metric-key">عدد الصبات</div>
               </div>
-              <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
-                <button className="ca-why-btn" onClick={() => toggleWhy("ratio")}>؟</button>
-                <div className="ca-metric-val">{result.brew_ratio}</div>
-                <div className="ca-metric-key">نسبة القهوة للماء</div>
-              </div>
+              {temp === "cold" ? (
+                <div className="ca-metric">
+                  <button className="ca-why-btn" onClick={() => toggleWhy("ice")}>؟</button>
+                  <div className="ca-metric-val">{result.ice_amount}</div>
+                  <div className="ca-metric-key">كمية الثلج المقترحة</div>
+                </div>
+              ) : (
+                <div className="ca-metric">
+                  <button className="ca-why-btn" onClick={() => toggleWhy("ratio")}>؟</button>
+                  <div className="ca-metric-val">{result.brew_ratio}</div>
+                  <div className="ca-metric-key">نسبة القهوة للماء</div>
+                </div>
+              )}
+              {openWhy === "pours" && <div className="ca-why-box">{result.why_pours}</div>}
+              {openWhy === "ice" && <div className="ca-why-box">{result.why_ice}</div>}
+              {temp !== "cold" && openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
+
+              {temp === "cold" && (
+                <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
+                  <button className="ca-why-btn" onClick={() => toggleWhy("ratio")}>؟</button>
+                  <div className="ca-metric-val">{result.brew_ratio}</div>
+                  <div className="ca-metric-key">نسبة القهوة للماء</div>
+                </div>
+              )}
+              {temp === "cold" && openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
 
               {result.grind_setting && (
                 <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
@@ -367,10 +470,6 @@ function CoffeeApp() {
                   <div className="ca-metric-key">رقم الطحنة المقترح{grinderInfoLabel ? ` — ${grinderInfoLabel}` : ""}</div>
                 </div>
               )}
-
-              {openWhy === "temp" && <div className="ca-why-box">{result.why_temperature}</div>}
-              {openWhy === "pours" && <div className="ca-why-box">{result.why_pours}</div>}
-              {openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
               {openWhy === "grind" && <div className="ca-why-box">{result.why_grind}</div>}
             </div>
 
@@ -412,6 +511,23 @@ function CoffeeApp() {
                 </div>
               </div>
             )}
+
+            <div className="ca-rating-block">
+              <div className="ca-rating-label">قيّم هذا المحصول</div>
+              <div className="ca-stars">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <span
+                    key={n}
+                    className={`ca-star ${n <= rating ? "filled" : ""}`}
+                    onClick={() => submitRating(n)}
+                  >★</span>
+                ))}
+              </div>
+              {rating > 0 && !savedBeansId && (
+                <div className="ca-rating-thanks">التقييم يُحفظ بعد ما نعرف اسم المحمصة — اكتبه بالخانة اللي فوق.</div>
+              )}
+              {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
+            </div>
           </div>
           <div className="ca-btnrow" style={{ marginTop: 16 }}>
             <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setResult(null); setOpenWhy(null); }}>تجربة صورة أخرى</button>
