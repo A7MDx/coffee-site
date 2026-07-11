@@ -61,6 +61,21 @@
 
   .ca-divider { border: none; border-top: 1px solid var(--line); margin: 26px 0 20px; }
 
+  /* Grinder selector */
+  .ca-grinder-select { margin-bottom: 20px; }
+  .ca-grinder-hint { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; line-height: 1.6; }
+  .ca-grinder-modes { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .ca-grinder-mode-btn {
+    padding: 7px 14px; border: 1px solid var(--line); border-radius: 20px; background: #fff;
+    font-size: 12.5px; cursor: pointer; color: #6b5a4a; font-family: inherit;
+  }
+  .ca-grinder-mode-btn.active { background: var(--ink); color: var(--parchment); border-color: var(--ink); }
+  .ca-grinder-fields { display: flex; gap: 10px; }
+  .ca-select, .ca-text-input {
+    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
+    font-family: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
+  }
+
   /* Hot/Cold selector */
   .ca-temp-select { margin-bottom: 20px; }
   .ca-temp-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
@@ -123,16 +138,39 @@
 <script type="text/babel">
 const { useState, useRef } = React;
 
+const GRINDERS = {
+  "Comandante": ["C40 MK3", "C40 MK4"],
+  "1Zpresso": ["J-Max", "JX-Pro", "K-Max", "Q2", "ZP6"],
+  "Baratza": ["Encore", "Encore ESP", "Sette 270", "Virtuoso+"],
+  "Fellow": ["Ode Gen 2", "Opus"],
+  "Timemore": ["C2", "C3", "Chestnut X"],
+  "Hario": ["Skerton Pro", "Mini Mill"],
+  "DF64": ["DF64", "DF64 Gen 2"],
+  "Eureka": ["Mignon Specialita"],
+  "Niche": ["Niche Zero"]
+};
+
 function CoffeeApp() {
   const [temp, setTemp] = useState("hot"); // hot | cold
+  const [grinderMode, setGrinderMode] = useState("none"); // list | custom | none
+  const [grinderBrand, setGrinderBrand] = useState("");
+  const [grinderModel, setGrinderModel] = useState("");
+  const [grinderCustom, setGrinderCustom] = useState("");
   const [stream, setStream] = useState(null);
   const [captured, setCaptured] = useState(null);
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
   const [errMsg, setErrMsg] = useState("");
   const [openWhy, setOpenWhy] = useState(null); // which metric's explanation is open
+  const [roasteryInput, setRoasteryInput] = useState("");
+  const [saved, setSaved] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+
+  const grinderInfoLabel =
+    grinderMode === "list" && grinderBrand && grinderModel ? `${grinderBrand} ${grinderModel}`
+    : grinderMode === "custom" && grinderCustom.trim() ? grinderCustom.trim()
+    : "";
 
   const startCamera = async () => {
     try {
@@ -170,7 +208,7 @@ function CoffeeApp() {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64Data, tempChoice: temp })
+        body: JSON.stringify({ imageBase64: base64Data, tempChoice: temp, grinderInfo: grinderInfoLabel || null })
       });
 
       if (!response.ok) {
@@ -179,10 +217,37 @@ function CoffeeApp() {
       }
       const parsed = await response.json();
       setResult(parsed);
+      setSaved(false);
+      setRoasteryInput("");
       setStatus("done");
+
+      // لو الموديل تعرّف على اسم المحمصة من الصورة، نسجل البحث فورًا
+      if (parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== "") {
+        recordSearch(parsed, parsed.roastery_name);
+      }
     } catch (e) {
       setErrMsg(e.message || "حدث خطأ أثناء التحليل. جرّب مرة أخرى.");
       setStatus("error");
+    }
+  };
+
+  const recordSearch = async (parsedResult, roasteryName) => {
+    try {
+      await fetch("/api/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coffeeType: parsedResult.coffee_type,
+          origin: parsedResult.origin || null,
+          process: parsedResult.process || null,
+          roastLevel: parsedResult.roast_level,
+          roasteryName
+        })
+      });
+      setSaved(true);
+    } catch (e) {
+      // فشل التسجيل ما يوقف تجربة المستخدم — فقط ما يدخل بالإحصائيات
+      console.error("record failed", e);
     }
   };
 
@@ -203,9 +268,42 @@ function CoffeeApp() {
           </div>
           <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => setTemp("cold")}>
             <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
-            <div className="ca-temp-card-sub">Cold brew / آيسد</div>
+            <div className="ca-temp-card-sub">V60 مثلّج (Iced V60)</div>
           </div>
         </div>
+      </div>
+
+      <div className="ca-grinder-select">
+        <div className="ca-grinder-hint">لأجل طعم أفضل، حدد نوع طاحونتك (اختياري)</div>
+        <div className="ca-grinder-modes">
+          <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => setGrinderMode("list")}>اختر من القائمة</button>
+          <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => setGrinderMode("custom")}>اكتب اسمها</button>
+          <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => setGrinderMode("none")}>بدون تحديد</button>
+        </div>
+
+        {grinderMode === "list" && (
+          <div className="ca-grinder-fields">
+            <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); }}>
+              <option value="">الشركة المصنعة</option>
+              {Object.keys(GRINDERS).map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select className="ca-select" value={grinderModel} onChange={(e) => setGrinderModel(e.target.value)} disabled={!grinderBrand}>
+              <option value="">الموديل</option>
+              {(GRINDERS[grinderBrand] || []).map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+        )}
+
+        {grinderMode === "custom" && (
+          <input
+            className="ca-text-input"
+            type="text"
+            placeholder="مثال: طاحونة يدوية محلية، أو أي اسم آخر"
+            value={grinderCustom}
+            onChange={(e) => setGrinderCustom(e.target.value)}
+            style={{ width: "100%" }}
+          />
+        )}
       </div>
 
       <div className={`ca-stage ${!stream && !captured ? "empty" : ""}`}>
@@ -263,9 +361,18 @@ function CoffeeApp() {
                 <div className="ca-metric-key">نسبة القهوة للماء</div>
               </div>
 
+              {result.grind_setting && (
+                <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
+                  <button className="ca-why-btn" onClick={() => toggleWhy("grind")}>؟</button>
+                  <div className="ca-metric-val">{result.grind_setting}</div>
+                  <div className="ca-metric-key">رقم الطحنة المقترح{grinderInfoLabel ? ` — ${grinderInfoLabel}` : ""}</div>
+                </div>
+              )}
+
               {openWhy === "temp" && <div className="ca-why-box">{result.why_temperature}</div>}
               {openWhy === "pours" && <div className="ca-why-box">{result.why_pours}</div>}
               {openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
+              {openWhy === "grind" && <div className="ca-why-box">{result.why_grind}</div>}
             </div>
 
             {result.pours_breakdown && result.pours_breakdown.length > 0 && (
@@ -284,6 +391,28 @@ function CoffeeApp() {
             )}
 
             <div className="ca-notes">{result.notes}</div>
+
+            {(!result.roastery_name || result.roastery_name.toLowerCase() === "unknown" || result.roastery_name.trim() === "") && !saved && (
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed var(--line)" }}>
+                <div style={{ fontSize: 13, marginBottom: 8, color: "#4a3b2c" }}>ما قدرنا نتعرف على اسم المحمصة من الصورة — تكتبه لنا؟ (اختياري)</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="ca-text-input"
+                    type="text"
+                    placeholder="اسم المحمصة"
+                    value={roasteryInput}
+                    onChange={(e) => setRoasteryInput(e.target.value)}
+                  />
+                  <button
+                    className="ca-btn"
+                    style={{ flex: "0 0 auto" }}
+                    onClick={() => recordSearch(result, roasteryInput.trim() || "غير محدد")}
+                  >
+                    حفظ
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="ca-btnrow" style={{ marginTop: 16 }}>
             <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setResult(null); setOpenWhy(null); }}>تجربة صورة أخرى</button>
