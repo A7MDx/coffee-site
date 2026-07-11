@@ -1,6 +1,6 @@
 {
   "name": "coffee-ai-site",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "private": true,
   "dependencies": {
     "@upstash/redis": "^1.34.0"
