@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>نُهل</title>
+<title>نُــهـل</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -44,7 +44,7 @@
   }
   .ca-stage video, .ca-stage canvas, .ca-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .ca-stage.empty::before {
-    content: "لا توجد كاميرا مفعّلة"; position: absolute; inset: 0;
+    content: "فــعّـل الكمرا "; position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center; color: #8a7862; font-size: 13px;
   }
   canvas.hidden { display: none; }
@@ -255,20 +255,20 @@ function CoffeeApp() {
 
   return (
     <div className="ca-wrap">
-      <div className="ca-eyebrow">نموذج أولي · تجربة حية · تعليمي</div>
-      <h1 className="ca-title">حلّل محصول قهوتك وتعلّم أسبابه</h1>
-      <p className="ca-sub">صوّر حبوب القهوة، اختر طريقة التحضير، وشوف مو بس الأرقام — بل السبب وراء كل رقم.</p>
+      <div className="ca-eyebrow">نموذج أولي · تجربة حية </div>
+      <h1 className="ca-title">حلّل محصول قهوتك وتعلّم تحضيرة</h1>
+      <p className="ca-sub">صوّر ملصق القهوة.</p>
 
       <div className="ca-temp-select">
         <div className="ca-temp-label">طريقة التحضير</div>
         <div className="ca-temp-options">
           <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => setTemp("hot")}>
             <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>قهوة حارة</div>
-            <div className="ca-temp-card-sub">Pour-over ساخن</div>
+            <div className="ca-temp-card-sub">  </div>
           </div>
           <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => setTemp("cold")}>
             <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
-            <div className="ca-temp-card-sub">V60 مثلّج (Iced V60)</div>
+            <div className="ca-temp-card-sub">  </div>
           </div>
         </div>
       </div>
