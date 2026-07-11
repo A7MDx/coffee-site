@@ -264,7 +264,6 @@ function CoffeeApp() {
         <div className="ca-temp-options">
           <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => setTemp("hot")}>
             <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>قهوة حارة</div>
-            <div className="ca-temp-card-sub">  </div>
           </div>
           <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => setTemp("cold")}>
             <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
