@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>حلّل محصول قهوتك</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+</head>
+<body style="margin:0">
+<div id="coffee-app"></div>
+<style>
+  #coffee-app {
+    --ink: #2B1D14;
+    --gold: #C89B3C;
+    --parchment: #EDE6D6;
+    --line: #D9CDB3;
+    --error: #A83232;
+    --hot: #C4572B;
+    --cold: #2E7D8C;
+    font-family: 'Georgia', 'Noto Naskh Arabic', serif;
+    background: var(--parchment);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 0;
+    direction: rtl;
+  }
+  .ca-wrap { max-width: 520px; margin: 0 auto; padding: 32px 20px 60px; }
+  .ca-eyebrow {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .ca-title { font-size: 27px; font-weight: 700; line-height: 1.3; margin: 0 0 6px; }
+  .ca-sub { font-size: 14px; color: #6b5a4a; margin-bottom: 24px; line-height: 1.7; }
+
+  .ca-stage {
+    position: relative; width: 100%; aspect-ratio: 4/3;
+    background: var(--ink); border-radius: 4px; overflow: hidden; margin-bottom: 16px;
+  }
+  .ca-stage video, .ca-stage canvas, .ca-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ca-stage.empty::before {
+    content: "لا توجد كاميرا مفعّلة"; position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center; color: #8a7862; font-size: 13px;
+  }
+  canvas.hidden { display: none; }
+
+  .ca-btnrow { display: flex; gap: 10px; margin-bottom: 20px; }
+  .ca-btn {
+    flex: 1; padding: 13px 16px; border: 1px solid var(--ink); background: var(--ink);
+    color: var(--parchment); font-family: inherit; font-size: 14px; font-weight: 600;
+    border-radius: 3px; cursor: pointer; transition: opacity .15s;
+  }
+  .ca-btn:hover { opacity: .85; }
+  .ca-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .ca-btn.secondary { background: transparent; color: var(--ink); }
+
+  .ca-divider { border: none; border-top: 1px solid var(--line); margin: 26px 0 20px; }
+
+  /* Hot/Cold selector */
+  .ca-temp-select { margin-bottom: 20px; }
+  .ca-temp-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
+  .ca-temp-options { display: flex; gap: 10px; }
+  .ca-temp-card {
+    flex: 1; border: 1.5px solid var(--line); border-radius: 6px; padding: 14px;
+    text-align: center; cursor: pointer; background: #fff; transition: all .15s;
+  }
+  .ca-temp-card.active-hot { border-color: var(--hot); background: #FBEDE6; }
+  .ca-temp-card.active-cold { border-color: var(--cold); background: #E7F2F3; }
+  .ca-temp-card-title { font-weight: 700; font-size: 15px; }
+  .ca-temp-card-sub { font-size: 11px; color: #8a7862; margin-top: 3px; }
+
+  .ca-ticket { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 20px; }
+  .ca-ticket-label {
+    font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 1.5px;
+    color: var(--gold); text-transform: uppercase; margin-bottom: 4px;
+  }
+  .ca-ticket-name { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
+
+  .ca-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .ca-metric {
+    background: var(--parchment); border-radius: 3px; padding: 12px 14px; position: relative;
+  }
+  .ca-metric-val { font-family: 'Courier New', monospace; font-size: 21px; font-weight: 700; }
+  .ca-metric-key { font-size: 11px; color: #6b5a4a; margin-top: 2px; }
+  .ca-why-btn {
+    position: absolute; top: 8px; left: 8px; width: 20px; height: 20px; border-radius: 50%;
+    border: 1px solid var(--line); background: #fff; font-size: 11px; font-weight: 700;
+    color: var(--gold); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace; padding: 0;
+  }
+  .ca-why-btn:hover { background: var(--gold); color: #fff; }
+  .ca-why-box {
+    grid-column: 1 / -1; background: #fff; border: 1px dashed var(--gold); border-radius: 3px;
+    padding: 12px 14px; font-size: 12.5px; line-height: 1.7; color: #4a3b2c; margin-top: -4px;
+  }
+
+  /* Pour breakdown table */
+  .ca-pours-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--ink); }
+  .ca-pours-track { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+  .ca-pour-cell {
+    flex: 1; border-left: 1px solid var(--line); padding: 10px 6px; text-align: center; background: #fff;
+  }
+  .ca-pour-cell:last-child { border-left: none; }
+  .ca-pour-num { font-family: 'Courier New', monospace; font-size: 10px; color: var(--gold); letter-spacing: .5px; margin-bottom: 4px; }
+  .ca-pour-amt { font-size: 13px; font-weight: 700; }
+  .ca-pour-time { font-size: 10px; color: #8a7862; margin-top: 2px; }
+
+  .ca-notes {
+    font-size: 13px; line-height: 1.8; color: #4a3b2c; border-top: 1px dashed var(--line); padding-top: 14px;
+  }
+  .ca-status { text-align: center; font-size: 13px; color: #6b5a4a; padding: 24px 0; }
+  .ca-status.error { color: var(--error); }
+  .ca-disclaimer {
+    font-family: 'Courier New', monospace; font-size: 10px; color: #9a8b74;
+    text-align: center; margin-top: 20px; line-height: 1.6;
+  }
+</style>
+<script type="text/babel">
+const { useState, useRef } = React;
+
+function CoffeeApp() {
+  const [temp, setTemp] = useState("hot"); // hot | cold
+  const [stream, setStream] = useState(null);
+  const [captured, setCaptured] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [result, setResult] = useState(null);
+  const [errMsg, setErrMsg] = useState("");
+  const [openWhy, setOpenWhy] = useState(null); // which metric's explanation is open
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  const startCamera = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      setStream(s);
+      setStatus("camera");
+      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = s; }, 50);
+    } catch (e) {
+      setErrMsg("تعذر الوصول للكاميرا. تأكد من إعطاء الإذن للمتصفح.");
+      setStatus("error");
+    }
+  };
+
+  const stopCamera = () => { if (stream) stream.getTracks().forEach(t => t.stop()); setStream(null); };
+
+  const capture = () => {
+    const video = videoRef.current, canvas = canvasRef.current;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    setCaptured(canvas.toDataURL("image/jpeg", 0.85));
+    stopCamera();
+    setStatus("captured");
+  };
+
+  const retake = () => { setCaptured(null); setResult(null); startCamera(); };
+
+  const analyze = async () => {
+    setStatus("loading");
+    setOpenWhy(null);
+    try {
+      const base64Data = captured.split(",")[1];
+
+      // الموقع يتصل بسيرفرنا الخاص (/api/analyze) وليس بـ Anthropic مباشرة.
+      // مفتاح الـ API يبقى مخفيًا بالكامل على السيرفر ولا يظهر أبدًا في المتصفح.
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64Data, tempChoice: temp })
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || "فشل الاتصال");
+      }
+      const parsed = await response.json();
+      setResult(parsed);
+      setStatus("done");
+    } catch (e) {
+      setErrMsg(e.message || "حدث خطأ أثناء التحليل. جرّب مرة أخرى.");
+      setStatus("error");
+    }
+  };
+
+  const toggleWhy = (key) => setOpenWhy(openWhy === key ? null : key);
+
+  return (
+    <div className="ca-wrap">
+      <div className="ca-eyebrow">نموذج أولي · تجربة حية · تعليمي</div>
+      <h1 className="ca-title">حلّل محصول قهوتك وتعلّم أسبابه</h1>
+      <p className="ca-sub">صوّر حبوب القهوة، اختر طريقة التحضير، وشوف مو بس الأرقام — بل السبب وراء كل رقم.</p>
+
+      <div className="ca-temp-select">
+        <div className="ca-temp-label">طريقة التحضير</div>
+        <div className="ca-temp-options">
+          <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => setTemp("hot")}>
+            <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>قهوة حارة</div>
+            <div className="ca-temp-card-sub">Pour-over ساخن</div>
+          </div>
+          <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => setTemp("cold")}>
+            <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
+            <div className="ca-temp-card-sub">Cold brew / آيسد</div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`ca-stage ${!stream && !captured ? "empty" : ""}`}>
+        {stream && <video ref={videoRef} autoPlay playsInline muted />}
+        {captured && <img src={captured} alt="القهوة الملتقطة" />}
+      </div>
+      <canvas ref={canvasRef} className="hidden" />
+
+      {status === "idle" && (
+        <div className="ca-btnrow"><button className="ca-btn" onClick={startCamera}>تشغيل الكاميرا</button></div>
+      )}
+      {status === "camera" && (
+        <div className="ca-btnrow">
+          <button className="ca-btn" onClick={capture}>التقاط الصورة</button>
+          <button className="ca-btn secondary" onClick={stopCamera}>إلغاء</button>
+        </div>
+      )}
+      {status === "captured" && (
+        <div className="ca-btnrow">
+          <button className="ca-btn" onClick={analyze}>تحليل الصورة</button>
+          <button className="ca-btn secondary" onClick={retake}>إعادة التصوير</button>
+        </div>
+      )}
+      {status === "loading" && <div className="ca-status">جارٍ تحليل الصورة وتجهيز الشرح...</div>}
+      {status === "error" && (
+        <>
+          <div className="ca-status error">{errMsg}</div>
+          <div className="ca-btnrow">
+            <button className="ca-btn" onClick={() => { setStatus("idle"); setCaptured(null); }}>حاول من جديد</button>
+          </div>
+        </>
+      )}
+
+      {status === "done" && result && (
+        <>
+          <hr className="ca-divider" />
+          <div className="ca-ticket">
+            <div className="ca-ticket-label">النوع والتحميص</div>
+            <div className="ca-ticket-name">{result.coffee_type} · {result.roast_level}</div>
+
+            <div className="ca-metrics">
+              <div className="ca-metric">
+                <button className="ca-why-btn" onClick={() => toggleWhy("temp")}>؟</button>
+                <div className="ca-metric-val">{result.temperature_c}°</div>
+                <div className="ca-metric-key">درجة الحرارة (م)</div>
+              </div>
+              <div className="ca-metric">
+                <button className="ca-why-btn" onClick={() => toggleWhy("pours")}>؟</button>
+                <div className="ca-metric-val">{result.pours_count}</div>
+                <div className="ca-metric-key">عدد الصبات</div>
+              </div>
+              <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
+                <button className="ca-why-btn" onClick={() => toggleWhy("ratio")}>؟</button>
+                <div className="ca-metric-val">{result.brew_ratio}</div>
+                <div className="ca-metric-key">نسبة القهوة للماء</div>
+              </div>
+
+              {openWhy === "temp" && <div className="ca-why-box">{result.why_temperature}</div>}
+              {openWhy === "pours" && <div className="ca-why-box">{result.why_pours}</div>}
+              {openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
+            </div>
+
+            {result.pours_breakdown && result.pours_breakdown.length > 0 && (
+              <>
+                <div className="ca-pours-label">جدول الصبات</div>
+                <div className="ca-pours-track">
+                  {result.pours_breakdown.map((p, i) => (
+                    <div className="ca-pour-cell" key={i}>
+                      <div className="ca-pour-num">{p.label}</div>
+                      <div className="ca-pour-amt">{p.amount}</div>
+                      <div className="ca-pour-time">{p.time}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="ca-notes">{result.notes}</div>
+          </div>
+          <div className="ca-btnrow" style={{ marginTop: 16 }}>
+            <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setResult(null); setOpenWhy(null); }}>تجربة صورة أخرى</button>
+          </div>
+        </>
+      )}
+
+      <div className="ca-disclaimer">
+        {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — الدقة تعتمد على وضوح الصورة والإضاءة."}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<CoffeeApp />, document.getElementById("coffee-app"));
+</script>
+</body>
+</html>
