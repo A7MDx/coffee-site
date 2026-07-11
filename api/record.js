@@ -1,3 +1,4 @@
+// Version: 3.0
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis).
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص)
 // بدون ما نبني الآن أي واجهة عرض لها — بس نجمع الأرقام الخام أول.
@@ -98,7 +99,7 @@ export default async function handler(req, res) {
       })
     ]);
 
-    return res.status(200).json({ ok: true, beansId });
+    return res.status(200).json({ ok: true, beansId, roasteryId: normalizedRoastery });
   } catch (err) {
     console.error("Record error:", err);
     // فشل التسجيل ما يفترض يوقف تجربة المستخدم أبدًا — بس نرجع خطأ صامت
