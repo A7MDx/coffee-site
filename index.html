@@ -1,4 +1,4 @@
-<!-- Version: 21 -->
+<!-- Version: 22 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -186,34 +186,35 @@
   .ca-slider-block { padding: 18px 0; border-bottom: 1px solid var(--line); }
   .ca-slider-block:first-child { padding-top: 4px; }
   .ca-slider-block:last-child { border-bottom: none; }
-  .ca-slider-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; margin-bottom: 16px; }
-  .ca-slider-band { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); }
+  .ca-slider-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; margin-bottom: 10px; }
+  .ca-slider-band { font-family: 'Courier New', monospace; font-size: 11px; color: var(--ink); }
 
-  .ca-slider-track-wrap { position: relative; padding-top: 16px; }
-  .ca-baseline-arrow, .ca-live-arrow {
-    position: absolute; transform: translateX(50%); font-size: 13px; line-height: 1; pointer-events: none;
-    transition: right .08s linear;
+  .ca-arrow-row { position: relative; height: 14px; }
+  .ca-baseline-arrow, .ca-refined-arrow {
+    position: absolute; top: 0; transform: translateX(50%); font-size: 12px; line-height: 1; pointer-events: none;
   }
-  .ca-baseline-arrow { top: 16px; color: var(--ink); z-index: 1; }
-  .ca-live-arrow { top: 2px; color: var(--gold); font-size: 12px; z-index: 2; }
+  .ca-baseline-arrow { color: var(--ink); }
+  .ca-refined-arrow { color: var(--gold); }
 
-  .ca-slider-zones { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+  .ca-slider-zones { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
   .ca-slider-zone { flex: 1; }
   .ca-slider-zone:nth-child(1) { background: #E7EFE3; }
   .ca-slider-zone:nth-child(2) { background: #F3E9C9; }
   .ca-slider-zone:nth-child(3) { background: #F0D2B0; }
   .ca-slider-zone:nth-child(4) { background: #EAB69A; }
 
-  .ca-slider-input {
-    width: 100%; appearance: none; -webkit-appearance: none; height: 18px; background: transparent;
-    margin: -12px 0 0; position: relative; cursor: pointer; display: block;
+  .ca-gold-label { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); margin-top: 6px; margin-bottom: 10px; }
+
+  .ca-slider-input-plain {
+    width: 100%; appearance: none; -webkit-appearance: none; height: 6px; border-radius: 3px;
+    background: var(--line); cursor: pointer; display: block; margin-top: 4px;
   }
-  .ca-slider-input::-webkit-slider-thumb {
+  .ca-slider-input-plain::-webkit-slider-thumb {
     -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-    background: var(--gold); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); cursor: pointer;
+    background: var(--ink); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); cursor: pointer;
   }
-  .ca-slider-input::-moz-range-thumb {
-    width: 18px; height: 18px; border-radius: 50%; background: var(--gold); border: 2px solid #fff; cursor: pointer;
+  .ca-slider-input-plain::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--ink); border: 2px solid #fff; cursor: pointer;
   }
 
   .ca-extreme-warning { font-size: 11.5px; color: var(--error); margin-top: 10px; line-height: 1.6; }
@@ -286,7 +287,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "19.10.11.05.03.21";
+const APP_VERSION = "19.10.11.05.03.22";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -870,36 +871,43 @@ function CoffeeApp() {
                       const baseVal = baseline ? baseline[key] : sliders[key];
                       const minAllowed = Math.max(0, baseVal - 30);
                       const maxAllowed = Math.min(100, baseVal + 30);
+                      // السهم الذهبي يتبع الأسود دائمًا حتى يضغط العميل "تحسين الوصفة" —
+                      // ما يتحرك مع سحب المنزلق، بس يقفز لموقع النتيجة الفعلية بعد التحسين
+                      const goldVal = comparison ? comparison.refined.sensory[key] : baseVal;
                       const isExtreme = sliders[key] === 0 || sliders[key] === 100;
                       return (
                         <div className="ca-slider-block" key={key}>
                           <div className="ca-slider-label">
                             <span>{emoji} {label}</span>
-                            <span className="ca-slider-band">{sliders[key]}% · {sensoryBand(sliders[key])}</span>
+                            <span className="ca-slider-band">{baseVal}% · {sensoryBand(baseVal)}</span>
                           </div>
 
-                          <div className="ca-slider-track-wrap">
+                          <div className="ca-arrow-row">
                             <div className="ca-baseline-arrow" style={{ right: `${baseVal}%` }}>▼</div>
-                            <div className="ca-live-arrow" style={{ right: `${sliders[key]}%` }}>▲</div>
-                            <div className="ca-slider-zones">
-                              <div className="ca-slider-zone"></div>
-                              <div className="ca-slider-zone"></div>
-                              <div className="ca-slider-zone"></div>
-                              <div className="ca-slider-zone"></div>
-                            </div>
-                            <input
-                              className="ca-slider-input"
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={sliders[key]}
-                              onChange={(e) => {
-                                const requested = Number(e.target.value);
-                                const clamped = Math.min(maxAllowed, Math.max(minAllowed, requested));
-                                setSliders({ ...sliders, [key]: clamped });
-                              }}
-                            />
                           </div>
+                          <div className="ca-slider-zones">
+                            <div className="ca-slider-zone"></div>
+                            <div className="ca-slider-zone"></div>
+                            <div className="ca-slider-zone"></div>
+                            <div className="ca-slider-zone"></div>
+                          </div>
+                          <div className="ca-arrow-row">
+                            <div className="ca-refined-arrow" style={{ right: `${goldVal}%` }}>▲</div>
+                          </div>
+                          <div className="ca-gold-label">{goldVal}% · {sensoryBand(goldVal)}</div>
+
+                          <input
+                            className="ca-slider-input-plain"
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={sliders[key]}
+                            onChange={(e) => {
+                              const requested = Number(e.target.value);
+                              const clamped = Math.min(maxAllowed, Math.max(minAllowed, requested));
+                              setSliders({ ...sliders, [key]: clamped });
+                            }}
+                          />
                           {isExtreme && (
                             <div className="ca-extreme-warning">⚠️ {sliders[key]}% قيمة متطرفة غير واقعية لهذا البن — النتيجة النهائية بتقترب منها قدر الإمكان بس بدون الوصول لها فعليًا.</div>
                           )}
@@ -909,7 +917,7 @@ function CoffeeApp() {
 
                     <div className="ca-legend-box">
                       <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--ink)"}}>▼</span> طعم البن الأصلي (ثابت)</div>
-                      <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--gold)"}}>▲</span> تفضيلك الحالي</div>
+                      <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--gold)"}}>▲</span> النتيجة بعد التحسين</div>
                     </div>
 
                     <button className="ca-refine-btn" onClick={refineRecipe} disabled={refining}>
