@@ -1,11 +1,11 @@
-<!-- Version: 14 -->
+<!-- Version: 15 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مُهل</title>
+<title>مُــهـل</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -21,6 +21,9 @@
     --error: #A83232;
     --hot: #C4572B;
     --cold: #2E7D8C;
+    --mug-a: #FBF4E3;
+    --mug-b: #C89B3C;
+    --coffee: #4A2F1F;
     font-family: 'Georgia', 'Noto Naskh Arabic', serif;
     background: var(--parchment);
     color: var(--ink);
@@ -36,7 +39,9 @@
     color: var(--gold);
     margin-bottom: 6px;
   }
-  .ca-title { font-size: 27px; font-weight: 700; line-height: 1.3; margin: 0 0 6px; }
+  .ca-title-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
+  .ca-title { font-size: 27px; font-weight: 700; line-height: 1.3; margin: 0; }
+  .mug-loader-brand { width: 40px; height: 40px; overflow: visible; }
   .ca-sub { font-size: 14px; color: #6b5a4a; margin-bottom: 24px; line-height: 1.7; }
 
   .ca-stage {
@@ -173,12 +178,56 @@
   .ca-star { color: var(--line); transition: color .1s; }
   .ca-star.filled { color: var(--gold); }
   .ca-rating-thanks { font-size: 12.5px; color: #6b5a4a; margin-top: 6px; }
+
+  /* Loading — mug */
+  .ca-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 0; }
+  .ca-loading-text { font-size: 13px; color: #6b5a4a; }
+  .mug-loader { width: 92px; height: 92px; overflow: visible; display: block; }
+
+  .mug-loader .hop { transform-box: fill-box; transform-origin: 50% 100%; animation: mug-hop .9s ease-in-out infinite; }
+  @keyframes mug-hop {
+    0%   { transform: translateY(0) rotate(0deg); }
+    22%  { transform: translateY(-14px) rotate(-4deg); }
+    45%  { transform: translateY(0) rotate(0deg); }
+    68%  { transform: translateY(-14px) rotate(4deg); }
+    90%  { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  .mug-loader .leg-l { transform-box: fill-box; transform-origin: 100% 0%; animation: leg-l-swing .9s ease-in-out infinite; }
+  .mug-loader .leg-r { transform-box: fill-box; transform-origin: 0% 0%; animation: leg-r-swing .9s ease-in-out infinite; }
+  @keyframes leg-l-swing { 0%,100% { transform: rotate(0deg); } 22% { transform: rotate(-16deg); } 45% { transform: rotate(10deg); } 68% { transform: rotate(-4deg); } }
+  @keyframes leg-r-swing { 0%,100% { transform: rotate(0deg); } 22% { transform: rotate(4deg); } 45% { transform: rotate(-10deg); } 68% { transform: rotate(16deg); } }
+
+  .mug-loader .shadow { transform-box: fill-box; transform-origin: 50% 50%; animation: mug-shadow .9s ease-in-out infinite; }
+  @keyframes mug-shadow {
+    0%   { transform: scaleX(1);    opacity: 0.4; }
+    22%  { transform: scaleX(0.72); opacity: 0.22; }
+    45%  { transform: scaleX(1);    opacity: 0.4; }
+    68%  { transform: scaleX(0.72); opacity: 0.22; }
+    100% { transform: scaleX(1);    opacity: 0.4; }
+  }
+
+  .mug-loader .drop { opacity: 0; animation: drop-fly 1.8s ease-out infinite; }
+  .mug-loader .drop.d2 { animation-delay: 0.6s; }
+  .mug-loader .drop.d3 { animation-delay: 1.2s; }
+  @keyframes drop-fly {
+    0%   { transform: translate(0, 0) scale(0.4); opacity: 0; }
+    8%   { opacity: 1; }
+    55%  { transform: translate(var(--dx, 6px), -46px) scale(1); opacity: 1; }
+    80%  { transform: translate(calc(var(--dx, 6px) * 1.4), -66px) scale(0.8); opacity: 0; }
+    100% { opacity: 0; transform: translate(calc(var(--dx, 6px) * 1.4), -66px) scale(0.8); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mug-loader .hop, .mug-loader .leg-l, .mug-loader .leg-r,
+    .mug-loader .shadow, .mug-loader .drop { animation-duration: 2.4s; }
+  }
 </style>
 <script type="text/babel">
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "18.09.11.05.03.14";
+const APP_VERSION = "18.09.11.05.03.15";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -192,9 +241,40 @@ const GRINDERS = {
   "Niche": ["Niche Zero"]
 };
 
-// تقدير تقريبي لكمية المشروب النهائي حسب عدد الأكواب (280-300 مل لكل كوب)
-function cupRangeLabel(n) {
-  return `${280 * n}-${300 * n}غ`;
+// تقدير تقريبي لكمية المشروب النهائي حسب عدد الأكواب (280 إلى 300 مل لكل كوب).
+// نستخدم <span dir="ltr"> عشان الأرقام ما تنعكس بصريًا داخل سياق الصفحة RTL.
+function CupAmount({ n }) {
+  return <span><span dir="ltr">{280 * n}-{300 * n}</span> مل</span>;
+}
+
+function MugLoader({ className = "", label = "جارٍ التحليل" }) {
+  return (
+    <svg className={`mug-loader ${className}`} viewBox="0 0 200 220" role="img" aria-label={label}>
+      <ellipse className="shadow" cx="100" cy="204" rx="34" ry="7" fill="var(--ink)" opacity="0.4"/>
+      <g className="hop">
+        <path className="leg-l" d="M88,176 L79,192 L70,201" fill="none" stroke="var(--ink)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
+        <path className="leg-r" d="M112,176 L121,192 L130,201" fill="none" stroke="var(--ink)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M62,92 C40,86 32,110 39,124 C45,136 62,135 65,122 L58,120 C56,127 47,127 44,120 C40,111 45,97 63,101 Z" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="5" strokeLinejoin="round"/>
+        <path d="M58,70 L58,150 Q58,165 74,165 L126,165 Q142,165 142,150 L142,70 Z" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="6" strokeLinejoin="round"/>
+        <path d="M78,72 C74,58 82,50 78,38 C90,44 90,60 82,72 Z" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="4.5" strokeLinejoin="round"/>
+        <path d="M104,70 C100,52 112,46 108,30 C122,38 120,58 112,70 Z" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="4.5" strokeLinejoin="round"/>
+        <ellipse cx="100" cy="70" rx="42" ry="15" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="6"/>
+        <ellipse cx="100" cy="71" rx="32" ry="9.5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="3.5"/>
+        <circle cx="110" cy="122" r="4.6" fill="var(--ink)"/>
+        <circle cx="128" cy="122" r="4.6" fill="var(--ink)"/>
+        <path d="M112,136 Q119,144 126,136 Q119,140 112,136 Z" fill="#fff" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round"/>
+      </g>
+      <circle className="drop d1" style={{ "--dx": "-14px" }} cx="82" cy="55" r="4.5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
+      <circle className="drop d2" style={{ "--dx": "4px" }} cx="100" cy="48" r="5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
+      <circle className="drop d3" style={{ "--dx": "18px" }} cx="118" cy="55" r="4" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
+      <defs>
+        <linearGradient id="mugGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--mug-a)"/>
+          <stop offset="1" stopColor="var(--mug-b)"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
 }
 
 function CoffeeApp() {
@@ -254,14 +334,12 @@ function CoffeeApp() {
   const retake = () => { setCaptured(null); setResult(null); startCamera(); };
 
   const analyze = async () => {
-    // تحقق 1: طريقة التحضير لازم تكون محددة
     if (!temp) {
       setTempWarning(true);
       return;
     }
     setTempWarning(false);
 
-    // تحقق 2: لو اختار "اختر من القائمة" لازم يكمل الشركة والموديل فعليًا
     if (grinderMode === "list" && (!grinderBrand || !grinderModel)) {
       setGrinderWarning(true);
       return;
@@ -297,15 +375,12 @@ function CoffeeApp() {
       setRatingSubmitted(false);
       setStatus("done");
 
-      // نسجل عملية البحث فورًا دائمًا (بغض النظر هل بيقيّم العميل أو لا)
       const roasteryForRecord =
         parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== ""
           ? parsed.roastery_name
           : "غير محدد";
       recordSearch(parsed, roasteryForRecord);
 
-      // لو ما تعرّفنا على المحمصة، نجيب قائمة المحامص المعروفة سابقًا كاقتراحات
-      // عشان العميل يختار من بينها بدل ما يكتب اسم جديد يسبب تكرار
       if (roasteryForRecord === "غير محدد") {
         fetch("/api/record")
           .then(r => r.json())
@@ -362,9 +437,11 @@ function CoffeeApp() {
 
   return (
     <div className="ca-wrap">
-      <div className="ca-eyebrow">نموذج أولي رقم الإصدار {APP_VERSION}</div>
-      <h1 className="ca-title">مُهل</h1>
-      <p className="ca-sub">هذا نموذج أولي، فتأكد من تصوير كيس المحصول بإضاءة ممتازة لنتائج أفضل.</p>
+      <div className="ca-eyebrow">الإصدار {APP_VERSION}</div>
+      <div className="ca-title-row">
+        <h1 className="ca-title">مُــهـل</h1>
+        <MugLoader className="mug-loader-brand" label="مُــهـل" />
+      </div>
 
       <div className="ca-cup-select">
         <div className="ca-cup-label">كم كوب تبي تحضّر؟</div>
@@ -376,7 +453,7 @@ function CoffeeApp() {
               onClick={() => setCupCount(n)}
             >
               <div className="ca-cup-emoji">{"☕️".repeat(n)}</div>
-              <div className="ca-cup-amount">{cupRangeLabel(n)}</div>
+              <div className="ca-cup-amount"><CupAmount n={n} /></div>
             </button>
           ))}
         </div>
@@ -451,7 +528,12 @@ function CoffeeApp() {
           <button className="ca-btn secondary" onClick={retake}>إعادة التصوير</button>
         </div>
       )}
-      {status === "loading" && <div className="ca-status">جارٍ تحليل الصورة وتجهيز الشرح...</div>}
+      {status === "loading" && (
+        <div className="ca-loading">
+          <MugLoader />
+          <div className="ca-loading-text">جارٍ تحليل الصورة وتجهيز الشرح...</div>
+        </div>
+      )}
       {status === "error" && (
         <>
           <div className="ca-status error">{errMsg}</div>
