@@ -1,4 +1,4 @@
-<!-- Version: 19 -->
+<!-- Version: 20 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -183,39 +183,47 @@
   .ca-custom-card { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 20px; margin-top: 16px; }
   .ca-custom-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
   .ca-custom-hint { font-size: 12px; color: #8a7862; margin-bottom: 18px; }
-  .ca-slider-block { margin-bottom: 20px; }
+  .ca-slider-block { margin-bottom: 22px; }
   .ca-slider-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; margin-bottom: 8px; }
   .ca-slider-band { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); }
-  .ca-slider-track-wrap { position: relative; padding-top: 26px; }
-  .ca-baseline-arrow {
-    position: absolute; top: 12px; transform: translateX(50%); font-size: 13px; color: var(--ink);
-    line-height: 1; pointer-events: none;
-  }
-  .ca-refined-arrow {
-    position: absolute; top: -2px; transform: translateX(50%); font-size: 12px; color: var(--gold);
-    line-height: 1; pointer-events: none;
-  }
-  .ca-slider-zones { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+
+  .ca-arrow-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+  .ca-arrow-pct { font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700; }
+  .baseline-pct { color: var(--ink); }
+  .refined-pct { color: var(--gold); }
+  .ca-arrow-icon { font-size: 12px; line-height: 1; }
+  .baseline-icon { color: var(--ink); }
+  .refined-icon { color: var(--gold); }
+
+  .ca-slider-zones { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
   .ca-slider-zone { flex: 1; }
   .ca-slider-zone:nth-child(1) { background: #E7EFE3; }
   .ca-slider-zone:nth-child(2) { background: #F3E9C9; }
   .ca-slider-zone:nth-child(3) { background: #F0D2B0; }
   .ca-slider-zone:nth-child(4) { background: #EAB69A; }
-  .ca-slider-input {
-    width: 100%; appearance: none; -webkit-appearance: none; height: 18px; background: transparent;
-    margin: -12px 0 0; position: relative; cursor: pointer;
+
+  .ca-slider-input-plain {
+    width: 100%; appearance: none; -webkit-appearance: none; height: 6px; border-radius: 3px;
+    background: var(--line); cursor: pointer; margin-top: 10px; display: block;
   }
-  .ca-slider-input::-webkit-slider-thumb {
+  .ca-slider-input-plain::-webkit-slider-thumb {
     -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
     background: var(--ink); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); cursor: pointer;
   }
-  .ca-slider-input::-moz-range-thumb {
+  .ca-slider-input-plain::-moz-range-thumb {
     width: 18px; height: 18px; border-radius: 50%; background: var(--ink); border: 2px solid #fff; cursor: pointer;
   }
-  .ca-explain-box {
-    background: var(--parchment); border-radius: 3px; padding: 12px 14px; font-size: 12.5px;
-    line-height: 1.7; color: #4a3b2c; margin-top: 4px; margin-bottom: 16px;
+
+  .ca-extreme-warning { font-size: 11.5px; color: var(--error); margin-top: 8px; line-height: 1.6; }
+
+  .ca-legend-box {
+    display: flex; gap: 14px; flex-wrap: wrap; background: var(--parchment); border-radius: 4px;
+    padding: 10px 12px; margin: 4px auto 16px 0; width: fit-content; font-size: 11px; color: #4a3b2c;
   }
+  .ca-legend-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .ca-legend-icon { font-size: 12px; }
+  .ca-legend-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ink); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); display: inline-block; }
+
   .ca-refine-btn {
     width: 100%; padding: 13px 16px; border: none; background: var(--gold); color: #fff;
     font-family: inherit; font-size: 14px; font-weight: 700; border-radius: 3px; cursor: pointer;
@@ -277,7 +285,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "19.10.11.05.03.19";
+const APP_VERSION = "19.10.11.05.03.20";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -852,8 +860,6 @@ function CoffeeApp() {
 
               {(() => {
                 const baseline = comparison ? comparison.original.sensory : result.sensory;
-                const preview = computePreview(baseline || sliders, sliders, cupCount);
-                const explanation = buildExplanation(preview);
 
                 return (
                   <>
@@ -862,41 +868,56 @@ function CoffeeApp() {
                       const minAllowed = Math.max(0, baseVal - 30);
                       const maxAllowed = Math.min(100, baseVal + 30);
                       const refinedVal = comparison ? comparison.refined.sensory[key] : null;
+                      const isExtreme = sliders[key] === 0 || sliders[key] === 100;
                       return (
                         <div className="ca-slider-block" key={key}>
                           <div className="ca-slider-label">
                             <span>{emoji} {label}</span>
                             <span className="ca-slider-band">{sliders[key]}% · {sensoryBand(sliders[key])}</span>
                           </div>
-                          <div className="ca-slider-track-wrap">
-                            {refinedVal !== null && (
-                              <div className="ca-refined-arrow" style={{ right: `${refinedVal}%` }}>▲</div>
-                            )}
-                            <div className="ca-baseline-arrow" style={{ right: `${baseVal}%` }}>▼</div>
-                            <div className="ca-slider-zones">
-                              <div className="ca-slider-zone"></div>
-                              <div className="ca-slider-zone"></div>
-                              <div className="ca-slider-zone"></div>
-                              <div className="ca-slider-zone"></div>
-                            </div>
-                            <input
-                              className="ca-slider-input"
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={sliders[key]}
-                              onChange={(e) => {
-                                const requested = Number(e.target.value);
-                                const clamped = Math.min(maxAllowed, Math.max(minAllowed, requested));
-                                setSliders({ ...sliders, [key]: clamped });
-                              }}
-                            />
+
+                          <div className="ca-arrow-row">
+                            <span className="ca-arrow-pct baseline-pct">{baseVal}%</span>
+                            <span className="ca-arrow-icon baseline-icon">▼</span>
                           </div>
+                          <div className="ca-slider-zones">
+                            <div className="ca-slider-zone"></div>
+                            <div className="ca-slider-zone"></div>
+                            <div className="ca-slider-zone"></div>
+                            <div className="ca-slider-zone"></div>
+                          </div>
+
+                          {refinedVal !== null && (
+                            <div className="ca-arrow-row">
+                              <span className="ca-arrow-pct refined-pct">{refinedVal}%</span>
+                              <span className="ca-arrow-icon refined-icon">▲</span>
+                            </div>
+                          )}
+
+                          <input
+                            className="ca-slider-input-plain"
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={sliders[key]}
+                            onChange={(e) => {
+                              const requested = Number(e.target.value);
+                              const clamped = Math.min(maxAllowed, Math.max(minAllowed, requested));
+                              setSliders({ ...sliders, [key]: clamped });
+                            }}
+                          />
+                          {isExtreme && (
+                            <div className="ca-extreme-warning">⚠️ {sliders[key]}% قيمة متطرفة غير واقعية لهذا البن — النتيجة النهائية بتقترب منها قدر الإمكان بس بدون الوصول لها فعليًا.</div>
+                          )}
                         </div>
                       );
                     })}
 
-                    {explanation && <div className="ca-explain-box">{explanation}</div>}
+                    <div className="ca-legend-box">
+                      <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--ink)"}}>▼</span> طعم البن الأصلي</div>
+                      <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--gold)"}}>▲</span> النتيجة بعد التحسين</div>
+                      <div className="ca-legend-item"><span className="ca-legend-dot"></span> اختيارك الحالي</div>
+                    </div>
 
                     <button className="ca-refine-btn" onClick={refineRecipe} disabled={refining}>
                       {refining ? "جارٍ التحسين..." : "✨ تحسين الوصفة"}
