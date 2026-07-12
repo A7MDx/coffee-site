@@ -1,10 +1,11 @@
-<!-- Version: 3.0 -->
+<!-- Version: 10 -->
+<!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>حلّل محصول قهوتك</title>
+<title>مُهل</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -31,9 +32,8 @@
   .ca-eyebrow {
     font-family: 'Courier New', monospace;
     font-size: 11px;
-    letter-spacing: 2px;
+    letter-spacing: 1.5px;
     color: var(--gold);
-    text-transform: uppercase;
     margin-bottom: 6px;
   }
   .ca-title { font-size: 27px; font-weight: 700; line-height: 1.3; margin: 0 0 6px; }
@@ -59,21 +59,22 @@
   .ca-btn:hover { opacity: .85; }
   .ca-btn:disabled { opacity: .4; cursor: not-allowed; }
   .ca-btn.secondary { background: transparent; color: var(--ink); }
+  .ca-btn.small { flex: 0 0 auto; padding: 9px 16px; font-size: 13px; }
 
   .ca-divider { border: none; border-top: 1px solid var(--line); margin: 26px 0 20px; }
 
-  /* Cup count selector */
   .ca-cup-select { margin-bottom: 20px; }
   .ca-cup-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
   .ca-cup-options { display: flex; gap: 8px; }
   .ca-cup-btn {
     flex: 1; padding: 12px 8px; border: 1.5px solid var(--line); border-radius: 6px;
-    background: #fff; cursor: pointer; font-size: 18px; text-align: center; transition: all .15s;
+    background: #fff; cursor: pointer; text-align: center; transition: all .15s;
   }
   .ca-cup-btn.active { border-color: var(--gold); background: #FBF4E3; }
+  .ca-cup-emoji { font-size: 18px; }
+  .ca-cup-amount { font-size: 10.5px; color: #8a7862; margin-top: 4px; }
 
-  /* Grinder selector */
-  .ca-grinder-select { margin-bottom: 20px; }
+  .ca-grinder-select { margin-bottom: 8px; }
   .ca-grinder-hint { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; line-height: 1.6; }
   .ca-grinder-modes { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
   .ca-grinder-mode-btn {
@@ -86,8 +87,8 @@
     flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
     font-family: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
   }
+  .ca-grinder-warning { font-size: 12.5px; color: var(--error); margin: 4px 0 12px; }
 
-  /* Hot/Cold selector */
   .ca-temp-select { margin-bottom: 8px; }
   .ca-temp-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
   .ca-temp-options { display: flex; gap: 10px; }
@@ -126,7 +127,6 @@
     padding: 12px 14px; font-size: 12.5px; line-height: 1.7; color: #4a3b2c; margin-top: -4px;
   }
 
-  /* Pour breakdown table */
   .ca-pours-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--ink); }
   .ca-pours-track { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
   .ca-pour-cell {
@@ -152,9 +152,9 @@
     text-align: center; margin-top: 20px; line-height: 1.6;
   }
 
-  /* Rating */
   .ca-rating-block { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
   .ca-rating-label { font-size: 13px; color: #4a3b2c; margin-bottom: 8px; }
+  .ca-rating-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   .ca-stars { font-size: 26px; display: flex; gap: 4px; cursor: pointer; }
   .ca-star { color: var(--line); transition: color .1s; }
   .ca-star.filled { color: var(--gold); }
@@ -162,6 +162,9 @@
 </style>
 <script type="text/babel">
 const { useState, useRef } = React;
+
+// رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
+const APP_VERSION = "17.08.11.05.03.10";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -175,6 +178,11 @@ const GRINDERS = {
   "Niche": ["Niche Zero"]
 };
 
+// تقدير تقريبي لكمية المشروب النهائي حسب عدد الأكواب (280-300 مل لكل كوب)
+function cupRangeLabel(n) {
+  return `${280 * n}-${300 * n}غ`;
+}
+
 function CoffeeApp() {
   const [cupCount, setCupCount] = useState(1);
   const [temp, setTemp] = useState(null);
@@ -183,6 +191,7 @@ function CoffeeApp() {
   const [grinderBrand, setGrinderBrand] = useState("");
   const [grinderModel, setGrinderModel] = useState("");
   const [grinderCustom, setGrinderCustom] = useState("");
+  const [grinderWarning, setGrinderWarning] = useState(false);
   const [stream, setStream] = useState(null);
   const [captured, setCaptured] = useState(null);
   const [status, setStatus] = useState("idle");
@@ -193,8 +202,9 @@ function CoffeeApp() {
   const [saved, setSaved] = useState(false);
   const [savedBeansId, setSavedBeansId] = useState(null);
   const [savedRoasteryId, setSavedRoasteryId] = useState(null);
-  const [rating, setRating] = useState(0);
+  const [pendingRating, setPendingRating] = useState(0);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [knownRoasteries, setKnownRoasteries] = useState([]);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -229,11 +239,20 @@ function CoffeeApp() {
   const retake = () => { setCaptured(null); setResult(null); startCamera(); };
 
   const analyze = async () => {
+    // تحقق 1: طريقة التحضير لازم تكون محددة
     if (!temp) {
       setTempWarning(true);
       return;
     }
     setTempWarning(false);
+
+    // تحقق 2: لو اختار "اختر من القائمة" لازم يكمل الشركة والموديل فعليًا
+    if (grinderMode === "list" && (!grinderBrand || !grinderModel)) {
+      setGrinderWarning(true);
+      return;
+    }
+    setGrinderWarning(false);
+
     setStatus("loading");
     setOpenWhy(null);
     try {
@@ -259,12 +278,24 @@ function CoffeeApp() {
       setSavedBeansId(null);
       setSavedRoasteryId(null);
       setRoasteryInput("");
-      setRating(0);
+      setPendingRating(0);
       setRatingSubmitted(false);
       setStatus("done");
 
-      if (parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== "") {
-        recordSearch(parsed, parsed.roastery_name);
+      // نسجل عملية البحث فورًا دائمًا (بغض النظر هل بيقيّم العميل أو لا)
+      const roasteryForRecord =
+        parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== ""
+          ? parsed.roastery_name
+          : "غير محدد";
+      recordSearch(parsed, roasteryForRecord);
+
+      // لو ما تعرّفنا على المحمصة، نجيب قائمة المحامص المعروفة سابقًا كاقتراحات
+      // عشان العميل يختار من بينها بدل ما يكتب اسم جديد يسبب تكرار
+      if (roasteryForRecord === "غير محدد") {
+        fetch("/api/record")
+          .then(r => r.json())
+          .then(d => setKnownRoasteries(d.roasteries || []))
+          .catch(() => {});
       }
     } catch (e) {
       setErrMsg(e.message || "حدث خطأ أثناء التحليل. جرّب مرة أخرى.");
@@ -282,7 +313,8 @@ function CoffeeApp() {
           origin: parsedResult.origin || null,
           process: parsedResult.process || null,
           roastLevel: parsedResult.roast_level,
-          roasteryName
+          roasteryName,
+          tempChoice: temp
         })
       });
       const data = await res.json();
@@ -294,14 +326,13 @@ function CoffeeApp() {
     }
   };
 
-  const submitRating = async (stars) => {
-    setRating(stars);
-    if (!savedBeansId) return;
+  const submitRating = async () => {
+    if (!pendingRating || !savedBeansId) return;
     try {
       await fetch("/api/rate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: stars })
+        body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: pendingRating })
       });
       setRatingSubmitted(true);
     } catch (e) {
@@ -313,9 +344,9 @@ function CoffeeApp() {
 
   return (
     <div className="ca-wrap">
-      <div className="ca-eyebrow">نموذج أولي · تجربة حية · تعليمي</div>
-      <h1 className="ca-title">حلّل محصول قهوتك وتعلّم أسبابه</h1>
-      <p className="ca-sub">صوّر حبوب القهوة، اختر طريقة التحضير، وشوف مو بس الأرقام — بل السبب وراء كل رقم.</p>
+      <div className="ca-eyebrow">نموذج أولي رقم الإصدار {APP_VERSION}</div>
+      <h1 className="ca-title">مُهل</h1>
+      <p className="ca-sub">هذا نموذج أولي، فتأكد من تصوير كيس المحصول بإضاءة ممتازة لنتائج أفضل.</p>
 
       <div className="ca-cup-select">
         <div className="ca-cup-label">كم كوب تبي تحضّر؟</div>
@@ -326,7 +357,8 @@ function CoffeeApp() {
               className={`ca-cup-btn ${cupCount === n ? "active" : ""}`}
               onClick={() => setCupCount(n)}
             >
-              {"☕️".repeat(n)}
+              <div className="ca-cup-emoji">{"☕️".repeat(n)}</div>
+              <div className="ca-cup-amount">{cupRangeLabel(n)}</div>
             </button>
           ))}
         </div>
@@ -335,18 +367,18 @@ function CoffeeApp() {
       <div className="ca-grinder-select">
         <div className="ca-grinder-hint">لأجل طعم أفضل، حدد نوع طاحونتك (اختياري)</div>
         <div className="ca-grinder-modes">
-          <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => setGrinderMode("list")}>اختر من القائمة</button>
-          <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => setGrinderMode("custom")}>اكتب اسمها</button>
-          <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => setGrinderMode("none")}>بدون تحديد</button>
+          <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => { setGrinderMode("list"); setGrinderWarning(false); }}>اختر من القائمة</button>
+          <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => { setGrinderMode("custom"); setGrinderWarning(false); }}>اكتب اسمها</button>
+          <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => { setGrinderMode("none"); setGrinderWarning(false); }}>بدون تحديد</button>
         </div>
 
         {grinderMode === "list" && (
           <div className="ca-grinder-fields">
-            <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); }}>
+            <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); setGrinderWarning(false); }}>
               <option value="">الشركة المصنعة</option>
               {Object.keys(GRINDERS).map(b => <option key={b} value={b}>{b}</option>)}
             </select>
-            <select className="ca-select" value={grinderModel} onChange={(e) => setGrinderModel(e.target.value)} disabled={!grinderBrand}>
+            <select className="ca-select" value={grinderModel} onChange={(e) => { setGrinderModel(e.target.value); setGrinderWarning(false); }} disabled={!grinderBrand}>
               <option value="">الموديل</option>
               {(GRINDERS[grinderBrand] || []).map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -363,18 +395,18 @@ function CoffeeApp() {
             style={{ width: "100%" }}
           />
         )}
+
+        {grinderWarning && <div className="ca-grinder-warning">اختر طاحونتك من القائمة، أو اختر "بدون تحديد"</div>}
       </div>
 
       <div className="ca-temp-select">
         <div className="ca-temp-label">طريقة التحضير</div>
         <div className="ca-temp-options">
           <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => { setTemp("hot"); setTempWarning(false); }}>
-            <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>قهوة حارة</div>
-            <div className="ca-temp-card-sub">V60 ساخن</div>
+            <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>حار</div>
           </div>
           <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => { setTemp("cold"); setTempWarning(false); }}>
-            <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>قهوة باردة</div>
-            <div className="ca-temp-card-sub">V60 مثلّج (Iced V60)</div>
+            <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>بارد</div>
           </div>
         </div>
         {tempWarning && <div className="ca-temp-warning">اختار نوع التحضير</div>}
@@ -467,7 +499,9 @@ function CoffeeApp() {
                 <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
                   <button className="ca-why-btn" onClick={() => toggleWhy("grind")}>؟</button>
                   <div className="ca-metric-val">{result.grind_setting}</div>
-                  <div className="ca-metric-key">رقم الطحنة المقترح{grinderInfoLabel ? ` — ${grinderInfoLabel}` : ""}</div>
+                  <div className="ca-metric-key">
+                    {grinderInfoLabel ? `رقم الطحنة المقترح — ${grinderInfoLabel}` : "درجة الطحن المقترحة"}
+                  </div>
                 </div>
               )}
               {openWhy === "grind" && <div className="ca-why-box">{result.why_grind}</div>}
@@ -490,20 +524,26 @@ function CoffeeApp() {
 
             <div className="ca-notes">{result.notes}</div>
 
-            {(!result.roastery_name || result.roastery_name.toLowerCase() === "unknown" || result.roastery_name.trim() === "") && !saved && (
+            {(!result.roastery_name || result.roastery_name.toLowerCase() === "unknown" || result.roastery_name.trim() === "") && (
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed var(--line)" }}>
                 <div style={{ fontSize: 13, marginBottom: 8, color: "#4a3b2c" }}>ما قدرنا نتعرف على اسم المحمصة من الصورة — تكتبه لنا؟ (اختياري)</div>
+                {knownRoasteries.length > 0 && (
+                  <div style={{ fontSize: 11.5, color: "#8a7862", marginBottom: 6 }}>لو محمصتك موجودة بالقائمة أثناء الكتابة، اخترها بدل ما تكتب اسم جديد — يفيد بتوحيد البيانات.</div>
+                )}
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     className="ca-text-input"
                     type="text"
+                    list="known-roasteries"
                     placeholder="اسم المحمصة"
                     value={roasteryInput}
                     onChange={(e) => setRoasteryInput(e.target.value)}
                   />
+                  <datalist id="known-roasteries">
+                    {knownRoasteries.map((name, i) => <option key={i} value={name} />)}
+                  </datalist>
                   <button
-                    className="ca-btn"
-                    style={{ flex: "0 0 auto" }}
+                    className="ca-btn small"
                     onClick={() => recordSearch(result, roasteryInput.trim() || "غير محدد")}
                   >
                     حفظ
@@ -513,19 +553,19 @@ function CoffeeApp() {
             )}
 
             <div className="ca-rating-block">
-              <div className="ca-rating-label">قيّم هذا المحصول</div>
-              <div className="ca-stars">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <span
-                    key={n}
-                    className={`ca-star ${n <= rating ? "filled" : ""}`}
-                    onClick={() => submitRating(n)}
-                  >★</span>
-                ))}
+              <div className="ca-rating-label">قيّم كوبك</div>
+              <div className="ca-rating-row">
+                <div className="ca-stars">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <span
+                      key={n}
+                      className={`ca-star ${n <= pendingRating ? "filled" : ""}`}
+                      onClick={() => setPendingRating(n)}
+                    >★</span>
+                  ))}
+                </div>
+                <button className="ca-btn small" onClick={submitRating} disabled={!pendingRating}>إرسال التقييم</button>
               </div>
-              {rating > 0 && !savedBeansId && (
-                <div className="ca-rating-thanks">التقييم يُحفظ بعد ما نعرف اسم المحمصة — اكتبه بالخانة اللي فوق.</div>
-              )}
               {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
             </div>
           </div>
