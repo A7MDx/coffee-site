@@ -1,4 +1,4 @@
-<!-- Version: 10 -->
+<!-- Version: 12 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -83,10 +83,25 @@
   }
   .ca-grinder-mode-btn.active { background: var(--ink); color: var(--parchment); border-color: var(--ink); }
   .ca-grinder-fields { display: flex; gap: 10px; }
-  .ca-select, .ca-text-input {
+  .ca-text-input {
     flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
     font-family: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
   }
+  .ca-select {
+    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
+    font-family: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
+  }
+  .ca-roastery-wrap { position: relative; flex: 1; }
+  .ca-roastery-dropdown {
+    position: absolute; top: calc(100% + 4px); right: 0; left: 0; z-index: 10;
+    background: #fff; border: 1px solid var(--line); border-radius: 4px;
+    max-height: 160px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .ca-roastery-option {
+    padding: 10px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--parchment);
+  }
+  .ca-roastery-option:last-child { border-bottom: none; }
+  .ca-roastery-option:hover { background: var(--parchment); }
   .ca-grinder-warning { font-size: 12.5px; color: var(--error); margin: 4px 0 12px; }
 
   .ca-temp-select { margin-bottom: 8px; }
@@ -164,7 +179,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "17.08.11.05.03.10";
+const APP_VERSION = "17.08.11.05.03.12";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -205,6 +220,7 @@ function CoffeeApp() {
   const [pendingRating, setPendingRating] = useState(0);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [knownRoasteries, setKnownRoasteries] = useState([]);
+  const [showRoasteryDropdown, setShowRoasteryDropdown] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -531,17 +547,33 @@ function CoffeeApp() {
                   <div style={{ fontSize: 11.5, color: "#8a7862", marginBottom: 6 }}>لو محمصتك موجودة بالقائمة أثناء الكتابة، اخترها بدل ما تكتب اسم جديد — يفيد بتوحيد البيانات.</div>
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    className="ca-text-input"
-                    type="text"
-                    list="known-roasteries"
-                    placeholder="اسم المحمصة"
-                    value={roasteryInput}
-                    onChange={(e) => setRoasteryInput(e.target.value)}
-                  />
-                  <datalist id="known-roasteries">
-                    {knownRoasteries.map((name, i) => <option key={i} value={name} />)}
-                  </datalist>
+                  <div className="ca-roastery-wrap">
+                    <input
+                      className="ca-text-input"
+                      type="text"
+                      placeholder="اسم المحمصة"
+                      value={roasteryInput}
+                      onFocus={() => setShowRoasteryDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowRoasteryDropdown(false), 150)}
+                      onChange={(e) => { setRoasteryInput(e.target.value); setShowRoasteryDropdown(true); }}
+                      style={{ width: "100%" }}
+                    />
+                    {showRoasteryDropdown && knownRoasteries.length > 0 && (
+                      <div className="ca-roastery-dropdown">
+                        {knownRoasteries
+                          .filter(name => !roasteryInput.trim() || name.toLowerCase().includes(roasteryInput.trim().toLowerCase()))
+                          .map((name, i) => (
+                            <div
+                              key={i}
+                              className="ca-roastery-option"
+                              onClick={() => { setRoasteryInput(name); setShowRoasteryDropdown(false); }}
+                            >
+                              {name}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
                   <button
                     className="ca-btn small"
                     onClick={() => recordSearch(result, roasteryInput.trim() || "غير محدد")}
