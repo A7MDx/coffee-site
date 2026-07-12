@@ -1,4 +1,4 @@
-// Version: 09
+// Version: 10
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -89,7 +89,8 @@ export default async function handler(req, res) {
   try {
     const {
       coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice,
-      correction, previousBeansId, previousRoasteryId
+      correction, previousBeansId, previousRoasteryId,
+      grinderMode, grinderBrand, grinderModel, grinderCustom
     } = req.body || {};
 
     const normalizedOrigin = normalizeWithAliases(origin, ORIGIN_ALIASES);
@@ -123,12 +124,28 @@ export default async function handler(req, res) {
     // من الصورة)، النظام حاليًا يعتبرهم محمصتين مختلفتين لأنه ما فيه تشابه نصي
     // بينهم يقدر الكود يكتشفه تلقائيًا. هذا يحتاج حل مستقبلي (دمج يدوي من لوحة
     // تحكم أو ربط الحساب بمحمصة مفضّلة بعد تسجيل الدخول) — مو خطأ بالكود الحالي.
+    // إحصائيات الطاحونة: نتابع أكثر شركة استخدامًا، وأكثر موديل محدد، وأكثر
+    // الأسماء اللي يكتبها العملاء يدويًا (عشان نعرف وش الطواحين اللي نحتاج
+    // نضيفها للقائمة الجاهزة مستقبلًا)
+    const grinderBumps = [];
+    if (grinderMode === "list" && grinderBrand && grinderModel) {
+      grinderBumps.push(bumpCounter("grinder_brand", slugify(grinderBrand)));
+      grinderBumps.push(bumpCounter("grinder_model", slugify(`${grinderBrand}_${grinderModel}`)));
+    } else if (grinderMode === "custom" && grinderCustom && grinderCustom.trim()) {
+      grinderBumps.push(bumpCounter("grinder_custom", slugify(grinderCustom.trim())));
+      grinderBumps.push(redis.hset(`grinder_custom_meta:${slugify(grinderCustom.trim())}`, {
+        displayName: grinderCustom.trim(),
+        lastSeen: new Date().toISOString()
+      }));
+    }
+
     await Promise.all([
       bumpCounter("beans", beansId),
       bumpCounter("roastery", normalizedRoastery),
       origin ? bumpCounter("origin", normalizedOrigin) : Promise.resolve(),
       coffeeProcess ? bumpCounter("process", normalizedProcess) : Promise.resolve(),
       tempChoice ? bumpCounter("temp", tempChoice === "cold" ? "cold" : "hot") : Promise.resolve(),
+      ...grinderBumps,
       redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),
       redis.hset(`beans_meta:${beansId}`, {
         coffeeType: coffeeType || "",
