@@ -1,4 +1,4 @@
-// Version: 3.0
+// Version: 3.1
 // هذا الملف يشتغل على السيرفر فقط (Vercel) — المستخدم أبدًا ما يشوف محتواه.
 // وظيفته: يستقبل الصورة من الموقع، يتصل بـ Claude API باستخدام المفتاح السري،
 // ثم يرجع النتيجة للموقع بدون ما يكشف المفتاح لأي حد.
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: 2200,
         messages: [{
           role: "user",
           content: [
@@ -115,7 +115,14 @@ ${grinderLine}
     const data = await response.json();
     const textBlock = data.content.find(b => b.type === "text");
     const clean = textBlock.text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(clean);
+    } catch (parseErr) {
+      console.error("JSON parse failed. Raw model output:", clean);
+      return res.status(502).json({ error: "فشل تحليل رد النموذج، جرّب مرة أخرى" });
+    }
 
     return res.status(200).json(parsed);
   } catch (err) {
