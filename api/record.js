@@ -1,11 +1,7 @@
-// Version: 3.0
-// هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis).
-// الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص)
-// بدون ما نبني الآن أي واجهة عرض لها — بس نجمع الأرقام الخام أول.
-//
-// طريقة التخزين: لكل بُعد (beans, roastery, origin, process) نحتفظ بـ:
-//   - مفتاح "day:<التاريخ>"  → عداد يومي، يسمح لاحقًا نجمع أي مدة نبيها (7 أيام، 30 يوم...)
-//   - مفتاح "all"            → إجمالي تراكمي دائم منذ أول استخدام، ما ينصفر أبدًا
+// Version: 08
+// هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
+// يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
+// الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
 
 import { Redis } from "@upstash/redis";
 
@@ -14,7 +10,6 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
 });
 
-// قاموس تطبيع أسماء الدول — يحول أي صيغة (عربي/إنجليزي/مع منطقة) لاسم قياسي واحد.
 const ORIGIN_ALIASES = {
   "colombia": "colombia", "كولومبيا": "colombia",
   "ethiopia": "ethiopia", "اثيوبيا": "ethiopia", "إثيوبيا": "ethiopia",
@@ -33,7 +28,6 @@ const ORIGIN_ALIASES = {
   "mexico": "mexico", "المكسيك": "mexico"
 };
 
-// قاموس تطبيع طرق المعالجة — نفس فكرة الدول بالضبط.
 const PROCESS_ALIASES = {
   "washed": "washed", "مغسولة": "washed", "مغسول": "washed",
   "natural": "natural", "طبيعية": "natural", "طبيعي": "natural", "جاف": "natural", "جافة": "natural",
@@ -44,7 +38,6 @@ const PROCESS_ALIASES = {
 
 function normalizeWithAliases(text, aliasMap) {
   if (!text) return "unknown";
-  // ناخذ أول جزء بس لو فيه شرطة أو أي فاصل (يعني فيه تفاصيل إضافية مرفقة)
   const firstPart = text.toString().trim().toLowerCase().split(/[-–,]/)[0].trim();
   return aliasMap[firstPart] || slugify(firstPart);
 }
@@ -58,9 +51,8 @@ function slugify(text) {
     .replace(/^-+|-+$/g, "");
 }
 
-// يزيد عداد اليوم الحالي + العداد الإجمالي الدائم لبُعد معيّن، بضربة واحدة
 async function bumpCounter(dimension, key) {
-  const dayKey = new Date().toISOString().slice(0, 10); // مثل 2026-07-11
+  const dayKey = new Date().toISOString().slice(0, 10);
   return Promise.all([
     redis.hincrby(`${dimension}:day:${dayKey}`, key, 1),
     redis.hincrby(`${dimension}:all`, key, 1)
@@ -68,20 +60,42 @@ async function bumpCounter(dimension, key) {
 }
 
 export default async function handler(req, res) {
+  // GET: يرجع قائمة بأسماء المحامص المعروفة سابقًا (تُستخدم كاقتراحات إكمال تلقائي
+  // بالموقع، عشان نقلل تكرار نفس المحمصة بأسماء/لغات مختلفة)
+  if (req.method === "GET") {
+    try {
+      const allCounts = await redis.hgetall("roastery:all") || {};
+      const slugs = Object.keys(allCounts);
+      const names = await Promise.all(
+        slugs.map(async (slug) => {
+          const meta = await redis.hget(`roastery_meta:${slug}`, "displayName");
+          return meta || slug;
+        })
+      );
+      return res.status(200).json({ roasteries: [...new Set(names)] });
+    } catch (err) {
+      console.error("Roastery list error:", err);
+      return res.status(200).json({ roasteries: [] }); // فشل هذا الجزء ما يوقف الموقع
+    }
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "الطريقة غير مسموحة" });
   }
 
   try {
-    const { coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName } = req.body || {};
+    const { coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice } = req.body || {};
 
     const normalizedOrigin = normalizeWithAliases(origin, ORIGIN_ALIASES);
     const normalizedProcess = normalizeWithAliases(coffeeProcess, PROCESS_ALIASES);
     const normalizedRoastery = slugify(roasteryName);
     const normalizedCoffeeType = slugify(coffeeType);
 
-    // beans_id فريد لكل تركيبة (محمصة + نوع المحصول + بلد المنشأ)
-    // نفس المحصول من نفس المحمصة يرجع يزيد نفس العداد بدل ما ينشئ سجل جديد
+    // ملاحظة مهمة: beans_id يعتمد على اسم المحمصة كنص. لو نفس المحمصة الفعلية
+    // انكتب اسمها بصيغتين مختلفتين تمامًا (مثل "صواع" يدويًا و"Roasting House"
+    // من الصورة)، النظام حاليًا يعتبرهم محمصتين مختلفتين لأنه ما فيه تشابه نصي
+    // بينهم يقدر الكود يكتشفه تلقائيًا. هذا يحتاج حل مستقبلي (دمج يدوي من لوحة
+    // تحكم أو ربط الحساب بمحمصة مفضّلة بعد تسجيل الدخول) — مو خطأ بالكود الحالي.
     const beansId = [normalizedRoastery, normalizedCoffeeType, normalizedOrigin].join("_");
 
     await Promise.all([
@@ -89,6 +103,8 @@ export default async function handler(req, res) {
       bumpCounter("roastery", normalizedRoastery),
       origin ? bumpCounter("origin", normalizedOrigin) : Promise.resolve(),
       coffeeProcess ? bumpCounter("process", normalizedProcess) : Promise.resolve(),
+      tempChoice ? bumpCounter("temp", tempChoice === "cold" ? "cold" : "hot") : Promise.resolve(),
+      redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),
       redis.hset(`beans_meta:${beansId}`, {
         coffeeType: coffeeType || "",
         origin: origin || "",
@@ -102,7 +118,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, beansId, roasteryId: normalizedRoastery });
   } catch (err) {
     console.error("Record error:", err);
-    // فشل التسجيل ما يفترض يوقف تجربة المستخدم أبدًا — بس نرجع خطأ صامت
     return res.status(500).json({ ok: false, error: "فشل حفظ الإحصائية" });
   }
 }
