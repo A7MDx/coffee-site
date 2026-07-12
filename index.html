@@ -1,4 +1,4 @@
-<!-- Version: 13 -->
+<!-- Version: 14 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -178,7 +178,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "18.08.11.05.03.13";
+const APP_VERSION = "18.09.11.05.03.14";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -318,7 +318,7 @@ function CoffeeApp() {
     }
   };
 
-  const recordSearch = async (parsedResult, roasteryName) => {
+  const recordSearch = async (parsedResult, roasteryName, isCorrection = false) => {
     try {
       const res = await fetch("/api/record", {
         method: "POST",
@@ -329,7 +329,10 @@ function CoffeeApp() {
           process: parsedResult.process || null,
           roastLevel: parsedResult.roast_level,
           roasteryName,
-          tempChoice: temp
+          tempChoice: temp,
+          correction: isCorrection,
+          previousBeansId: isCorrection ? savedBeansId : null,
+          previousRoasteryId: isCorrection ? savedRoasteryId : null
         })
       });
       const data = await res.json();
@@ -560,7 +563,7 @@ function CoffeeApp() {
                   </div>
                   <button
                     className="ca-btn small"
-                    onClick={() => recordSearch(result, roasteryInput.trim() || "غير محدد")}
+                    onClick={() => recordSearch(result, roasteryInput.trim() || "غير محدد", true)}
                   >
                     حفظ
                   </button>
