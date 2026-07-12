@@ -1,7 +1,12 @@
-// Version: 08
+// Version: 09
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
+//
+// وضع "التصحيح" (correction): لو العميل صحّح اسم المحمصة بعد ما انسجل تحت
+// "غير محدد"، نفس عملية البحث ما تُحسب مرتين — بس ننقل عداد beans/roastery
+// من المفتاح القديم للمفتاح الصحيح (ننزل القديم ونزيد الجديد)، وما نلمس
+// عدادات origin/process/temp لأنها انسجلت صح من أول مرة وما تعتمد على المحمصة.
 
 import { Redis } from "@upstash/redis";
 
@@ -51,17 +56,15 @@ function slugify(text) {
     .replace(/^-+|-+$/g, "");
 }
 
-async function bumpCounter(dimension, key) {
+async function bumpCounter(dimension, key, delta = 1) {
   const dayKey = new Date().toISOString().slice(0, 10);
   return Promise.all([
-    redis.hincrby(`${dimension}:day:${dayKey}`, key, 1),
-    redis.hincrby(`${dimension}:all`, key, 1)
+    redis.hincrby(`${dimension}:day:${dayKey}`, key, delta),
+    redis.hincrby(`${dimension}:all`, key, delta)
   ]);
 }
 
 export default async function handler(req, res) {
-  // GET: يرجع قائمة بأسماء المحامص المعروفة سابقًا (تُستخدم كاقتراحات إكمال تلقائي
-  // بالموقع، عشان نقلل تكرار نفس المحمصة بأسماء/لغات مختلفة)
   if (req.method === "GET") {
     try {
       const allCounts = await redis.hgetall("roastery:all") || {};
@@ -75,7 +78,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ roasteries: [...new Set(names)] });
     } catch (err) {
       console.error("Roastery list error:", err);
-      return res.status(200).json({ roasteries: [] }); // فشل هذا الجزء ما يوقف الموقع
+      return res.status(200).json({ roasteries: [] });
     }
   }
 
@@ -84,20 +87,42 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice } = req.body || {};
+    const {
+      coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice,
+      correction, previousBeansId, previousRoasteryId
+    } = req.body || {};
 
     const normalizedOrigin = normalizeWithAliases(origin, ORIGIN_ALIASES);
     const normalizedProcess = normalizeWithAliases(coffeeProcess, PROCESS_ALIASES);
     const normalizedRoastery = slugify(roasteryName);
     const normalizedCoffeeType = slugify(coffeeType);
+    const beansId = [normalizedRoastery, normalizedCoffeeType, normalizedOrigin].join("_");
+
+    if (correction && previousBeansId) {
+      // وضع التصحيح: نفس عملية البحث بس بمحمصة صحيحة — ننقل العداد، ما نضيف عملية جديدة
+      await Promise.all([
+        bumpCounter("beans", previousBeansId, -1),
+        previousRoasteryId ? bumpCounter("roastery", previousRoasteryId, -1) : Promise.resolve(),
+        bumpCounter("beans", beansId, 1),
+        bumpCounter("roastery", normalizedRoastery, 1),
+        redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),
+        redis.hset(`beans_meta:${beansId}`, {
+          coffeeType: coffeeType || "",
+          origin: origin || "",
+          process: coffeeProcess || "",
+          roastLevel: roastLevel || "",
+          roasteryName: roasteryName || "",
+          lastSeen: new Date().toISOString()
+        })
+      ]);
+      return res.status(200).json({ ok: true, beansId, roasteryId: normalizedRoastery, corrected: true });
+    }
 
     // ملاحظة مهمة: beans_id يعتمد على اسم المحمصة كنص. لو نفس المحمصة الفعلية
     // انكتب اسمها بصيغتين مختلفتين تمامًا (مثل "صواع" يدويًا و"Roasting House"
     // من الصورة)، النظام حاليًا يعتبرهم محمصتين مختلفتين لأنه ما فيه تشابه نصي
     // بينهم يقدر الكود يكتشفه تلقائيًا. هذا يحتاج حل مستقبلي (دمج يدوي من لوحة
     // تحكم أو ربط الحساب بمحمصة مفضّلة بعد تسجيل الدخول) — مو خطأ بالكود الحالي.
-    const beansId = [normalizedRoastery, normalizedCoffeeType, normalizedOrigin].join("_");
-
     await Promise.all([
       bumpCounter("beans", beansId),
       bumpCounter("roastery", normalizedRoastery),
