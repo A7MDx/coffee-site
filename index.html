@@ -1,4 +1,4 @@
-<!-- Version: 18 -->
+<!-- Version: 19 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -186,16 +186,15 @@
   .ca-slider-block { margin-bottom: 20px; }
   .ca-slider-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; margin-bottom: 8px; }
   .ca-slider-band { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); }
-  .ca-slider-track-wrap { position: relative; padding-top: 14px; }
+  .ca-slider-track-wrap { position: relative; padding-top: 26px; }
   .ca-baseline-arrow {
-    position: absolute; top: 0; transform: translateX(50%); font-size: 11px; color: var(--ink);
+    position: absolute; top: 12px; transform: translateX(50%); font-size: 13px; color: var(--ink);
     line-height: 1; pointer-events: none;
   }
   .ca-refined-arrow {
-    position: absolute; bottom: -16px; transform: translateX(50%); font-size: 11px; color: var(--gold);
+    position: absolute; top: -2px; transform: translateX(50%); font-size: 12px; color: var(--gold);
     line-height: 1; pointer-events: none;
   }
-  .ca-slider-track-wrap.has-refined { padding-bottom: 16px; }
   .ca-slider-zones { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
   .ca-slider-zone { flex: 1; }
   .ca-slider-zone:nth-child(1) { background: #E7EFE3; }
@@ -278,7 +277,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "19.10.11.05.03.18";
+const APP_VERSION = "19.10.11.05.03.19";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -415,7 +414,6 @@ function CoffeeApp() {
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState("");
   const [comparison, setComparison] = useState(null); // { original, refined }
-  const [refinedOnce, setRefinedOnce] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -491,7 +489,6 @@ function CoffeeApp() {
       setRatingSubmitted(false);
       setComparison(null);
       setRefineError("");
-      setRefinedOnce(false);
       setSliders(parsed.sensory ? { ...parsed.sensory } : null);
       setStatus("done");
 
@@ -589,7 +586,6 @@ function CoffeeApp() {
       const refined = await response.json();
       setComparison({ original: result, refined });
       setResult(refined);
-      setRefinedOnce(true);
     } catch (e) {
       setRefineError(e.message || "حدث خطأ أثناء تحسين الوصفة");
     } finally {
@@ -863,8 +859,8 @@ function CoffeeApp() {
                   <>
                     {SENSORY_META.map(({ key, label, emoji }) => {
                       const baseVal = baseline ? baseline[key] : sliders[key];
-                      const min = Math.max(0, baseVal - 30);
-                      const max = Math.min(100, baseVal + 30);
+                      const minAllowed = Math.max(0, baseVal - 30);
+                      const maxAllowed = Math.min(100, baseVal + 30);
                       const refinedVal = comparison ? comparison.refined.sensory[key] : null;
                       return (
                         <div className="ca-slider-block" key={key}>
@@ -872,7 +868,10 @@ function CoffeeApp() {
                             <span>{emoji} {label}</span>
                             <span className="ca-slider-band">{sliders[key]}% · {sensoryBand(sliders[key])}</span>
                           </div>
-                          <div className={`ca-slider-track-wrap ${refinedVal !== null ? "has-refined" : ""}`}>
+                          <div className="ca-slider-track-wrap">
+                            {refinedVal !== null && (
+                              <div className="ca-refined-arrow" style={{ right: `${refinedVal}%` }}>▲</div>
+                            )}
                             <div className="ca-baseline-arrow" style={{ right: `${baseVal}%` }}>▼</div>
                             <div className="ca-slider-zones">
                               <div className="ca-slider-zone"></div>
@@ -883,30 +882,25 @@ function CoffeeApp() {
                             <input
                               className="ca-slider-input"
                               type="range"
-                              min={min}
-                              max={max}
+                              min="0"
+                              max="100"
                               value={sliders[key]}
-                              disabled={refinedOnce}
-                              onChange={(e) => setSliders({ ...sliders, [key]: Number(e.target.value) })}
+                              onChange={(e) => {
+                                const requested = Number(e.target.value);
+                                const clamped = Math.min(maxAllowed, Math.max(minAllowed, requested));
+                                setSliders({ ...sliders, [key]: clamped });
+                              }}
                             />
-                            {refinedVal !== null && (
-                              <div className="ca-refined-arrow" style={{ right: `${refinedVal}%` }}>▲</div>
-                            )}
                           </div>
                         </div>
                       );
                     })}
 
-                    {explanation && !refinedOnce && <div className="ca-explain-box">{explanation}</div>}
+                    {explanation && <div className="ca-explain-box">{explanation}</div>}
 
-                    {!refinedOnce && (
-                      <button className="ca-refine-btn" onClick={refineRecipe} disabled={refining}>
-                        {refining ? "جارٍ التحسين..." : "✨ تحسين الوصفة"}
-                      </button>
-                    )}
-                    {refinedOnce && !refining && (
-                      <div className="ca-explain-box">تم تحسين الوصفة لهذي الصورة. صوّر من جديد لو حبيت تجرب تخصيص مختلف.</div>
-                    )}
+                    <button className="ca-refine-btn" onClick={refineRecipe} disabled={refining}>
+                      {refining ? "جارٍ التحسين..." : "✨ تحسين الوصفة"}
+                    </button>
                     {refineError && <div className="ca-status error" style={{ padding: "10px 0" }}>{refineError}</div>}
                   </>
                 );
