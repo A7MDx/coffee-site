@@ -1,4 +1,4 @@
-<!-- Version: 15 -->
+<!-- Version: 16 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -227,7 +227,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "18.09.11.05.03.15";
+const APP_VERSION = "19.10.11.05.03.16";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -244,7 +244,7 @@ const GRINDERS = {
 // تقدير تقريبي لكمية المشروب النهائي حسب عدد الأكواب (280 إلى 300 مل لكل كوب).
 // نستخدم <span dir="ltr"> عشان الأرقام ما تنعكس بصريًا داخل سياق الصفحة RTL.
 function CupAmount({ n }) {
-  return <span><span dir="ltr">{280 * n}-{300 * n}</span> مل</span>;
+  return <span><span dir="ltr" style={{ unicodeBidi: "isolate" }}>{280 * n}-{300 * n}</span> مل</span>;
 }
 
 function MugLoader({ className = "", label = "جارٍ التحليل" }) {
@@ -407,7 +407,11 @@ function CoffeeApp() {
           tempChoice: temp,
           correction: isCorrection,
           previousBeansId: isCorrection ? savedBeansId : null,
-          previousRoasteryId: isCorrection ? savedRoasteryId : null
+          previousRoasteryId: isCorrection ? savedRoasteryId : null,
+          grinderMode: isCorrection ? null : grinderMode,
+          grinderBrand: isCorrection ? null : grinderBrand,
+          grinderModel: isCorrection ? null : grinderModel,
+          grinderCustom: isCorrection ? null : grinderCustom
         })
       });
       const data = await res.json();
@@ -460,7 +464,7 @@ function CoffeeApp() {
       </div>
 
       <div className="ca-grinder-select">
-        <div className="ca-grinder-hint">لأجل طعم أفضل، حدد نوع طاحونتك (اختياري)</div>
+        <div className="ca-grinder-hint">لطعم أفضل، حدد نوع طاحونتك (اختياري)</div>
         <div className="ca-grinder-modes">
           <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => { setGrinderMode("list"); setGrinderWarning(false); }}>اختر من القائمة</button>
           <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => { setGrinderMode("custom"); setGrinderWarning(false); }}>اكتب اسمها</button>
@@ -484,7 +488,7 @@ function CoffeeApp() {
           <input
             className="ca-text-input"
             type="text"
-            placeholder="مثال: طاحونة يدوية محلية، أو أي اسم آخر"
+            placeholder="اكتب اسم الشركة، الموديل، وعدد درجات الطحن (مثال: XYZ - موديل ABC - من 1 إلى 40)"
             value={grinderCustom}
             onChange={(e) => setGrinderCustom(e.target.value)}
             style={{ width: "100%" }}
@@ -693,7 +697,7 @@ function CoffeeApp() {
       )}
 
       <div className="ca-disclaimer">
-        {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — الدقة تعتمد على وضوح الصورة والإضاءة."}
+        {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
       </div>
     </div>
   );
