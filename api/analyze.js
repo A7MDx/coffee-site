@@ -1,7 +1,10 @@
-// Version: 18  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
+// Version: 19  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
 // هذا الملف يشتغل على السيرفر فقط (Vercel) — المستخدم أبدًا ما يشوف محتواه.
-// وظيفته: يستقبل الصورة من الموقع، يتصل بـ Claude API باستخدام المفتاح السري،
-// ثم يرجع النتيجة للموقع بدون ما يكشف المفتاح لأي حد.
+// وضعين:
+//  1) mode=initial (افتراضي): يستقبل الصورة، يحلل الكيس، يرجع الوصفة + الملف الحسي.
+//  2) mode=refine: "تحسين الوصفة" — يستقبل بيانات البن الأصلية + الوصفة الأصلية +
+//     أهداف المستخدم بالمنزلقات (بدون إعادة إرسال الصورة، أسرع وأرخص)، ويرجع
+//     وصفة معدّلة كاملة تحترم طبيعة البن الحقيقية.
 
 const requestLog = new Map();
 const MAX_REQUESTS_PER_HOUR = 20;
@@ -15,23 +18,79 @@ function isRateLimited(ip) {
   return timestamps.length > MAX_REQUESTS_PER_HOUR;
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "الطريقة غير مسموحة" });
+// بنية الـ JSON المشتركة بين وضعي التحليل الأولي والتحسين
+const RESULT_SCHEMA = `{
+  "coffee_type": "اسم المحصول التجاري كما هو مطبوع على الكيس بالضبط (مثل Agustino Forest). لو ما فيه اسم واضح، وصف مختصر جدًا (نوع الحبة فقط).",
+  "roast_level": "درجة التحميص المتوقعة",
+  "origin": "بلد المنشأ فقط بالإنجليزي القياسي (مثل Colombia)، بدون منطقة أو مدينة، وإلا unknown",
+  "process": "طريقة المعالجة (washed/natural/honey/anaerobic) بالإنجليزي، وإلا unknown",
+  "roastery_name": "اسم المحمصة (فضّل العربي لو موجود بلغتين)، وإلا unknown بالضبط",
+  "confidence_note": "ملاحظة قصيرة عن وضوح الصورة أو مصدر البيانات",
+  "amount_grams": "كمية البن المقترحة بالجرام لكل الأكواب مجتمعة، مثل 18غ",
+  "why_amount": "شرح تعليمي قصير (2-3 جمل)",
+  "brew_ratio": "نسبة القهوة للماء مثل 1:16",
+  "why_ratio": "شرح تعليمي قصير (2-3 جمل)",
+  "temperature_c": رقم درجة الحرارة بالمئوية فقط,
+  "why_temperature": "شرح تعليمي قصير (2-3 جمل)",
+  "pours_count": رقم عدد الصبات بين 2 و4,
+  "why_pours": "شرح تعليمي قصير (2-3 جمل)",
+  "ice_amount": "كمية الثلج المقترحة لو التحضير بارد، وإلا null",
+  "why_ice": "شرح قصير لو باردة، وإلا null",
+  "pours_breakdown": [{"label": "الصبة الأولى", "amount": "مثل 40 مل", "time": "0:00 - 0:30"}],
+  "grind_setting": "رقم أو وصف الطحنة المقترح",
+  "why_grind": "شرح تعليمي قصير (2-3 جمل)",
+  "notes": "ملاحظة ختامية تعليمية قصيرة",
+  "sensory": {
+    "acidity": رقم تقديري من 0 إلى 100 لشدة الإحساس بالحموضة المتوقع في الكوب,
+    "sweetness": رقم تقديري من 0 إلى 100 للحلاوة المتوقعة,
+    "body": رقم تقديري من 0 إلى 100 لقوام/كثافة الكوب المتوقعة,
+    "bitterness": رقم تقديري من 0 إلى 100 للمرارة المتوقعة
+  }
+}`;
+
+const POUR_LABEL_RULE = `مهم جدًا بخصوص pours_breakdown: سمّي كل صبة بالضبط "الصبة الأولى"، "الصبة الثانية"، "الصبة الثالثة"، "الصبة الرابعة" فقط — بدون أي كلمة إضافية مثل (Bloom).`;
+
+async function callClaude(contentBlocks, maxTokens = 2200) {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: contentBlocks }]
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Anthropic API error:", errText);
+    throw { status: 502, message: "فشل الاتصال بخدمة التحليل" };
   }
 
-  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  const data = await response.json();
+  const textBlock = data.content.find(b => b.type === "text");
+  const clean = textBlock.text.replace(/```json|```/g, "").trim();
+
+  try {
+    return JSON.parse(clean);
+  } catch (parseErr) {
+    console.error("JSON parse failed. Raw model output:", clean);
+    throw { status: 502, message: "فشل تحليل رد النموذج، جرّب مرة أخرى" };
+  }
+}
+
+async function handleInitial(req, res, ip) {
   if (isRateLimited(ip)) {
     return res.status(429).json({ error: "عدد كبير من الطلبات. حاول بعد قليل." });
   }
 
   const { imageBase64, tempChoice, grinderInfo, cupCount } = req.body || {};
-  if (!imageBase64) {
-    return res.status(400).json({ error: "لم يتم إرسال صورة" });
-  }
-  if (!tempChoice) {
-    return res.status(400).json({ error: "لم يتم تحديد طريقة التحضير" });
-  }
+  if (!imageBase64) return res.status(400).json({ error: "لم يتم إرسال صورة" });
+  if (!tempChoice) return res.status(400).json({ error: "لم يتم تحديد طريقة التحضير" });
 
   const cups = Number(cupCount) > 0 ? Number(cupCount) : 1;
 
@@ -40,33 +99,18 @@ export default async function handler(req, res) {
     : "V60 حار عادي (Pour-over ساخن)";
 
   const grinderLine = grinderInfo
-    ? `العميل حدد إنه يستخدم طاحونة: ${grinderInfo}. اقترح رقم/إعداد طحن يناسب هذي الطاحونة تحديدًا ضمن حقل grind_setting، واشرح ليش بحقل why_grind. لو الطاحونة غير معروفة عندك بدقة، أعطِ أقرب تقدير معقول ووضّح بـ why_grind إن هذا تقدير تقريبي.`
-    : "العميل ما حدد نوع طاحونته. أعطِ وصف طحن عام فقط (مثل: ناعم، متوسط، خشن) بحقل grind_setting بدون رقم محدد، ووضّح بـ why_grind أساس هذا الوصف.";
+    ? `العميل حدد إنه يستخدم طاحونة: ${grinderInfo}. اقترح رقم/إعداد طحن يناسب هذي الطاحونة تحديدًا ضمن حقل grind_setting، واشرح ليش بحقل why_grind.`
+    : "العميل ما حدد نوع طاحونته. أعطِ وصف طحن عام فقط (ناعم/متوسط/خشن) بحقل grind_setting بدون رقم محدد.";
 
-  // مهم: كل كوب نهائي (مشروب جاهز للشرب) يفترض إنه يعادل تقريبًا 280-300 مل.
-  // احسب وزن البن ونسبة الماء بناءً على هذا الحجم الفعلي مضروبًا بعدد الأكواب،
-  // وليس مجرد ضرب خطي لوزن كوب واحد بعدد الأكواب.
-  const cupsLine = `العميل يبي يحضّر ${cups} كوب/أكواب. افترض أن كل كوب نهائي جاهز للشرب يعادل تقريبًا 280 إلى 300 مل. احسب الكمية الإجمالية المناسبة (وزن البن بالجرام، حجم الماء، كمية الثلج لو باردة) بناءً على هذا الحجم الفعلي مضروبًا بعدد الأكواب، مو مجرد ضرب خطي بسيط.
-${cups > 1 ? `مهم جدًا: بما إن الكمية أكبر من كوب واحد، الطحنة يفترض تكون أخشن قليلًا (نقطة أو نقطتين تقريبًا لو كانت الطاحونة رقمية) لتفادي الاستخلاص الزائد بسبب زيادة وقت التلامس بين الماء والبن. وضّح هذا التعديل تحديدًا بحقل why_grind، ولا تكتفِ بذكر نفس رقم طحنة الكوب الواحد.` : ""}`;
+  const cupsLine = `العميل يبي يحضّر ${cups} كوب/أكواب. افترض أن كل كوب نهائي جاهز للشرب يعادل تقريبًا 280 إلى 300 مل. احسب الكمية الإجمالية بناءً على هذا الحجم مضروبًا بعدد الأكواب، مو ضرب خطي بسيط.
+${cups > 1 ? `مهم: بما إن الكمية أكبر من كوب واحد، خشّن الطحنة قليلًا لتفادي الاستخلاص الزائد، ووضّح هذا بـ why_grind.` : ""}`;
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2200,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
-            {
-              type: "text",
-              text: `أنت خبير قهوة متخصص وتعمل في تطبيق تثقيفي هدفه تعليم العميل عن القهوة، مو بس إعطاءه تعليمات.
+    const parsed = await callClaude([
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
+      {
+        type: "text",
+        text: `أنت خبير قهوة متخصص وتعمل في تطبيق تثقيفي هدفه تعليم العميل عن القهوة، مو بس إعطاءه تعليمات.
 
 طريقة التحضير المطلوبة: ${tempLabel}
 
@@ -74,60 +118,72 @@ ${cupsLine}
 
 ${grinderLine}
 
-انظر للصورة وقدّم تحليلك. حاول أيضًا تتعرف على اسم المحمصة (Roastery) لو مكتوب أو واضح على العبوة بالصورة. أجب بصيغة JSON فقط بدون أي نص إضافي أو markdown، بالشكل التالي بالضبط:
-{
-  "coffee_type": "اسم المحصول التجاري كما هو مطبوع على الكيس بالضبط (مثل Agustino Forest)، لو موجود بالصورة. لو ما فيه اسم محصول واضح مطبوع، استخدم بدلاً عنه وصف مختصر جدًا (نوع الحبة فقط، مثل عربيكا). لا تكتب وصف تقني طويل مثل 'قهوة مختصة حبوب عربيكا تحميص فاتح'.",
-  "roast_level": "درجة التحميص المتوقعة",
-  "origin": "بلد المنشأ فقط بالإنجليزي القياسي (مثل Colombia أو Ethiopia)، بدون أي منطقة أو مدينة أو اسم عربي مرافق، وإلا اكتب unknown بالضبط",
-  "process": "طريقة المعالجة (washed/natural/honey/anaerobic) بالإنجليزي فقط لو واضحة، وإلا unknown",
-  "roastery_name": "اسم المحمصة لو ظاهر بالصورة بوضوح (نص أو شعار). لو الاسم مكتوب بلغتين (عربي وإنجليزي) على نفس الكيس، استخدم النسخة العربية دائمًا. لا تترجم الاسم بنفسك من لغة لأخرى — فقط انقل النص كما هو مكتوب بالصورة. لو ما فيه اسم واضح بالصورة، اكتب unknown بالضبط",
-  "confidence_note": "ملاحظة قصيرة عن وضوح الصورة",
-  "amount_grams": "كمية البن المقترحة بالجرام لكل الأكواب مجتمعة، مثل 18غ أو 30غ",
-  "why_amount": "شرح تعليمي قصير (2-3 جمل) ليش هذي الكمية بالذات",
-  "brew_ratio": "نسبة القهوة للماء مثل 1:16",
-  "why_ratio": "شرح تعليمي قصير (2-3 جمل)",
-  "temperature_c": رقم درجة الحرارة بالمئوية فقط,
-  "why_temperature": "شرح تعليمي قصير (2-3 جمل)",
-  "pours_count": رقم عدد الصبات بين 2 و4,
-  "why_pours": "شرح تعليمي قصير (2-3 جمل)",
-  "ice_amount": "كمية الثلج المقترحة بالمل أو الجرام لو طريقة التحضير باردة، وإلا اترك القيمة null",
-  "why_ice": "شرح تعليمي قصير ليش هذي كمية الثلج بالذات لو باردة، وإلا null",
-  "pours_breakdown": [
-    {"label": "الصبة الأولى", "amount": "مثل 40 مل", "time": "0:00 - 0:30"}
-  ],
-  "grind_setting": "رقم أو وصف الطحنة المقترح حسب التعليمات أعلاه",
-  "why_grind": "شرح تعليمي قصير (2-3 جمل)",
-  "notes": "ملاحظة ختامية تعليمية قصيرة"
+انظر للصورة وقدّم تحليلك، متضمنًا الملف الحسي المتوقع للبن (sensory) بناءً على بلد المنشأ، الارتفاع، المعالجة، الصنف، التحميص، وأي إيحاءات مكتوبة على الكيس. حاول أيضًا تتعرف على اسم المحمصة. أجب بصيغة JSON فقط بدون أي نص إضافي، بالشكل التالي بالضبط:
+${RESULT_SCHEMA}
+
+${POUR_LABEL_RULE}`
+      }
+    ]);
+    return res.status(200).json(parsed);
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
+  }
 }
 
-مهم جدًا بخصوص pours_breakdown: سمّي كل صبة بالضبط "الصبة الأولى"، "الصبة الثانية"، "الصبة الثالثة"، "الصبة الرابعة" فقط — بدون أي كلمة إضافية مثل (Bloom) أو أي وصف ثاني بجانب الاسم.`
-            }
-          ]
-        }]
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Anthropic API error:", errText);
-      return res.status(502).json({ error: "فشل الاتصال بخدمة التحليل" });
-    }
-
-    const data = await response.json();
-    const textBlock = data.content.find(b => b.type === "text");
-    const clean = textBlock.text.replace(/```json|```/g, "").trim();
-
-    let parsed;
-    try {
-      parsed = JSON.parse(clean);
-    } catch (parseErr) {
-      console.error("JSON parse failed. Raw model output:", clean);
-      return res.status(502).json({ error: "فشل تحليل رد النموذج، جرّب مرة أخرى" });
-    }
-
-    return res.status(200).json(parsed);
-  } catch (err) {
-    console.error("Server error:", err);
-    return res.status(500).json({ error: "حدث خطأ غير متوقع بالسيرفر" });
+async function handleRefine(req, res, ip) {
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: "عدد كبير من الطلبات. حاول بعد قليل." });
   }
+
+  const { beanProfile, originalRecipe, targetSensory, tempChoice, cupCount } = req.body || {};
+  if (!beanProfile || !originalRecipe || !targetSensory) {
+    return res.status(400).json({ error: "بيانات التحسين ناقصة" });
+  }
+
+  const cups = Number(cupCount) > 0 ? Number(cupCount) : 1;
+  const tempLabel = tempChoice === "cold" ? "V60 مثلّج (Iced V60)" : "V60 حار عادي";
+
+  try {
+    const parsed = await callClaude([
+      {
+        type: "text",
+        text: `أنت خبير قهوة متخصص. عميل حلّل بالفعل كيس قهوة، وهذي بيانات البن الحقيقية المستخرجة منه:
+${JSON.stringify(beanProfile)}
+
+والوصفة الأصلية اللي اقترحتها سابقًا:
+${JSON.stringify(originalRecipe)}
+
+الملف الحسي الأصلي المتوقع كان:
+${JSON.stringify(originalRecipe.sensory)}
+
+الآن العميل يبي يخصص كوبه، وحدد أهداف حسية جديدة (من 0 إلى 100 لكل خاصية):
+${JSON.stringify(targetSensory)}
+
+طريقة التحضير: ${tempLabel}، لعدد ${cups} كوب/أكواب (كل كوب نهائي ≈ 280-300 مل).
+
+أعد بناء الوصفة الكاملة بأفضل شكل يقارب هذي الأهداف قدر الإمكان، وتقدر تعدل أي عنصر (كمية البن، الماء، النسبة، الحرارة، الطحن، عدد الصبات، كمية كل صبة، توقيتها) إذا رأيت أنه يساعد.
+
+قيد مهم جدًا: حافظ على طبيعة البن الحقيقية. لو البن منخفض الحموضة بطبيعته، لا يجوز تحويله لحموضة عالية جدًا — اقترب من رغبة العميل قدر الإمكان بس بدون تجاوز حدود ما يسمح فيه البن فعليًا، ووضّح هذا القيد بحقل notes لو صار تعارض بين الهدف والواقع.
+
+أرجع نفس بنية الـ JSON الكاملة التالية (بما فيها sensory محدث يعكس التقدير الواقعي الجديد، مو بالضرورة نفس رقم الهدف بالضبط):
+${RESULT_SCHEMA}
+
+${POUR_LABEL_RULE}`
+      }
+    ]);
+    return res.status(200).json(parsed);
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
+  }
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "الطريقة غير مسموحة" });
+  }
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  const mode = (req.body && req.body.mode) || "initial";
+
+  if (mode === "refine") return handleRefine(req, res, ip);
+  return handleInitial(req, res, ip);
 }
