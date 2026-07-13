@@ -1,4 +1,4 @@
-<!-- Version: 22 -->
+<!-- Version: 23 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -203,7 +203,7 @@
   .ca-slider-zone:nth-child(3) { background: #F0D2B0; }
   .ca-slider-zone:nth-child(4) { background: #EAB69A; }
 
-  .ca-gold-label { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); margin-top: 6px; margin-bottom: 10px; }
+  .ca-gold-label { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); margin-top: 6px; margin-bottom: 10px; text-align: left; }
 
   .ca-slider-input-plain {
     width: 100%; appearance: none; -webkit-appearance: none; height: 6px; border-radius: 3px;
@@ -287,7 +287,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "19.10.11.05.03.22";
+const APP_VERSION = "19.10.11.05.03.23";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -935,6 +935,11 @@ function CoffeeApp() {
                       <tr><th>العنصر</th><th>الأصلية</th><th>بعد التخصيص</th></tr>
                     </thead>
                     <tbody>
+                      <tr>
+                        <td>كمية البن</td>
+                        <td>{comparison.original.amount_grams}</td>
+                        <td className={comparison.original.amount_grams !== comparison.refined.amount_grams ? "changed" : ""}>{comparison.refined.amount_grams}</td>
+                      </tr>
                       <tr>
                         <td>الحرارة</td>
                         <td>{comparison.original.temperature_c}°</td>
