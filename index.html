@@ -1,4 +1,4 @@
-<!-- Version: 26 -->
+<!-- Version: 27 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -334,7 +334,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "19.10.11.05.03.26.06.01";
+const APP_VERSION = "19.10.11.05.03.27.06.01";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -1177,7 +1177,13 @@ function CoffeeApp() {
               <div className="ca-fav-empty">ما حفظت أي محصول بعد — اضغط ❤️ بأي نتيجة عشان تضيفها هنا.</div>
             )}
             {!favoritesLoading && favoritesList.map((f) => {
-              const r = JSON.parse(f.recipe);
+              let r;
+              try {
+                r = typeof f.recipe === "string" ? JSON.parse(f.recipe) : f.recipe;
+              } catch (e) {
+                return null; // تجاهل أي عنصر تالف بدل ما يكسر الصفحة كاملة
+              }
+              if (!r) return null;
               return (
                 <div className="ca-fav-list-item" key={f.beansId}>
                   <span>{r.coffee_type} · {r.roast_level}</span>
