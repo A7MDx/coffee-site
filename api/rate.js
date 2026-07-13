@@ -1,4 +1,4 @@
-// Version: 13
+// Version: 14
 // هذا الملف يسجّل تقييم العميل (1-5 نجوم) لمحصول معيّن، ويربطه أيضًا بالمحمصة.
 // نخزن مجموع التقييمات وعددها بشكل منفصل (يومي + إجمالي دائم)، عشان نقدر نحسب
 // لاحقًا "متوسط التقييم" لأي فترة نبيها (هذا الشهر، آخر 30 يوم، أو كل الوقت).
@@ -45,6 +45,23 @@ async function getRequester(req) {
 }
 
 export default async function handler(req, res) {
+  // جلب كل تعليقات محصول معيّن — يستخدمها أي زائر يشوف نفس المحصول
+  if (req.method === "GET") {
+    const { beansId } = req.query;
+    if (!beansId) return res.status(400).json({ error: "بيانات ناقصة" });
+    try {
+      const raw = await redis.hgetall(`beans_comments:${beansId}`);
+      const comments = Object.entries(raw || {}).map(([commentId, val]) => {
+        const data = typeof val === "string" ? JSON.parse(val) : val;
+        return { commentId, ...data };
+      }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      return res.status(200).json({ comments });
+    } catch (err) {
+      console.error("Fetch comments error:", err);
+      return res.status(200).json({ comments: [] });
+    }
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "الطريقة غير مسموحة" });
   }
