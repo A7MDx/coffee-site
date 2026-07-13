@@ -1,1148 +1,200 @@
-<!-- Version: 25 -->
-<!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مُــهـل</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-</head>
-<body style="margin:0">
-<div id="coffee-app"></div>
-<style>
-  #coffee-app {
-    --ink: #2B1D14;
-    --gold: #C89B3C;
-    --parchment: #EDE6D6;
-    --line: #D9CDB3;
-    --error: #A83232;
-    --hot: #C4572B;
-    --cold: #2E7D8C;
-    --mug-a: #FBF4E3;
-    --mug-b: #C89B3C;
-    --coffee: #4A2F1F;
-    font-family: 'Georgia', 'Noto Naskh Arabic', serif;
-    background: var(--parchment);
-    color: var(--ink);
-    min-height: 100vh;
-    padding: 0;
-    direction: rtl;
-  }
-  .ca-wrap { max-width: 520px; margin: 0 auto; padding: 32px 20px 60px; }
-  .ca-eyebrow {
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    letter-spacing: 1.5px;
-    color: var(--gold);
-    margin-bottom: 6px;
-  }
-  .ca-title-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
-  .ca-title { font-size: 27px; font-weight: 700; line-height: 1.3; margin: 0; }
-  .mug-loader-brand { width: 40px; height: 40px; overflow: visible; }
-  .ca-sub { font-size: 14px; color: #6b5a4a; margin-bottom: 24px; line-height: 1.7; }
+// Version: 06
+// نظام الحسابات: تسجيل بإيميل + كلمة مرور، دخول، خروج، والتحقق من الجلسة الحالية.
+// بدون أي خدمة إيميل خارجية — يدخل مباشرة بعد التسجيل بدون تأكيد.
+// الجلسة تُدار عبر كوكي آمن (HttpOnly) يحمل رمز جلسة عشوائي، والرمز نفسه
+// مخزّن بـ Upstash Redis مربوط بمعرّف المستخدم.
+//
+// نظام الأدوار: 3 مستويات — owner (كل الصلاحيات + الإحصائيات)، admin (يشوف
+// الإحصائيات بس)، user (عادي). حقل role ما يُكتب أبدًا للحساب العادي (توفير
+// كتابة بسيط) — غيابه يعني تلقائيًا "user". يُكتب صراحة بس لما يصير admin/owner.
+// أول مالك يُفعّل عبر مفتاح سري (OWNER_BOOTSTRAP_SECRET) لمرة وحدة فقط، وبعدها
+// المالك نفسه يقدر يرفّع حسابات ثانية بدون الحاجة للمفتاح مرة ثانية.
 
-  .ca-stage {
-    position: relative; width: 100%; aspect-ratio: 4/3;
-    background: var(--ink); border-radius: 4px; overflow: hidden; margin-bottom: 16px;
-  }
-  .ca-stage video, .ca-stage canvas, .ca-stage img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ca-stage.empty::before {
-    content: "لا توجد كاميرا مفعّلة"; position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center; color: #8a7862; font-size: 13px;
-  }
-  canvas.hidden { display: none; }
+import { Redis } from "@upstash/redis";
+import crypto from "crypto";
 
-  .ca-btnrow { display: flex; gap: 10px; margin-bottom: 20px; }
-  .ca-btn {
-    flex: 1; padding: 13px 16px; border: 1px solid var(--ink); background: var(--ink);
-    color: var(--parchment); font-family: inherit; font-size: 14px; font-weight: 600;
-    border-radius: 3px; cursor: pointer; transition: opacity .15s;
-  }
-  .ca-btn:hover { opacity: .85; }
-  .ca-btn:disabled { opacity: .4; cursor: not-allowed; }
-  .ca-btn.secondary { background: transparent; color: var(--ink); }
-  .ca-btn.small { flex: 0 0 auto; padding: 9px 16px; font-size: 13px; }
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+});
 
-  .ca-divider { border: none; border-top: 1px solid var(--line); margin: 26px 0 20px; }
+const SESSION_DAYS = 30;
+const SESSION_SECONDS = SESSION_DAYS * 24 * 60 * 60;
 
-  .ca-cup-select { margin-bottom: 20px; }
-  .ca-cup-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
-  .ca-cup-options { display: flex; gap: 8px; }
-  .ca-cup-btn {
-    flex: 1; padding: 12px 8px; border: 1.5px solid var(--line); border-radius: 6px;
-    background: #fff; cursor: pointer; text-align: center; transition: all .15s;
-  }
-  .ca-cup-btn.active { border-color: var(--gold); background: #FBF4E3; }
-  .ca-cup-emoji { font-size: 18px; }
-  .ca-cup-amount { font-size: 10.5px; color: #8a7862; margin-top: 4px; }
-
-  .ca-grinder-select { margin-bottom: 8px; }
-  .ca-grinder-hint { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; line-height: 1.6; }
-  .ca-grinder-modes { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-  .ca-grinder-mode-btn {
-    padding: 7px 14px; border: 1px solid var(--line); border-radius: 20px; background: #fff;
-    font-size: 12.5px; cursor: pointer; color: #6b5a4a; font-family: inherit;
-  }
-  .ca-grinder-mode-btn.active { background: var(--ink); color: var(--parchment); border-color: var(--ink); }
-  .ca-grinder-fields { display: flex; gap: 10px; }
-  .ca-text-input {
-    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
-    font-family: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
-  }
-  .ca-select {
-    flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px;
-    font-family: inherit; font-size: 13.5px; background: #fff; color: var(--ink);
-  }
-  .ca-roastery-wrap { position: relative; flex: 1; }
-  .ca-roastery-dropdown {
-    margin-top: 4px; background: #fff; border: 1px solid var(--line); border-radius: 4px;
-    max-height: 160px; overflow-y: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-  }
-  .ca-roastery-option {
-    padding: 10px 12px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--parchment);
-  }
-  .ca-roastery-option:last-child { border-bottom: none; }
-  .ca-roastery-option:hover { background: var(--parchment); }
-  .ca-grinder-warning { font-size: 12.5px; color: var(--error); margin: 4px 0 12px; }
-
-  .ca-temp-select { margin-bottom: 8px; }
-  .ca-temp-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
-  .ca-temp-options { display: flex; gap: 10px; }
-  .ca-temp-card {
-    flex: 1; border: 1.5px solid var(--line); border-radius: 6px; padding: 14px;
-    text-align: center; cursor: pointer; background: #fff; transition: all .15s;
-  }
-  .ca-temp-card.active-hot { border-color: var(--hot); background: #FBEDE6; }
-  .ca-temp-card.active-cold { border-color: var(--cold); background: #E7F2F3; }
-  .ca-temp-card-title { font-weight: 700; font-size: 15px; }
-  .ca-temp-card-sub { font-size: 11px; color: #8a7862; margin-top: 3px; }
-  .ca-temp-warning { font-size: 12.5px; color: var(--error); margin: 8px 0 12px; }
-
-  .ca-ticket { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 20px; }
-  .ca-ticket-label {
-    font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 1.5px;
-    color: var(--gold); text-transform: uppercase; margin-bottom: 4px;
-  }
-  .ca-ticket-name { font-size: 19px; font-weight: 700; margin-bottom: 16px; }
-
-  .ca-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-  .ca-metric {
-    background: var(--parchment); border-radius: 3px; padding: 12px 14px; position: relative;
-  }
-  .ca-metric-val { font-family: 'Courier New', monospace; font-size: 21px; font-weight: 700; }
-  .ca-metric-key { font-size: 11px; color: #6b5a4a; margin-top: 2px; }
-  .ca-why-btn {
-    position: absolute; top: 8px; left: 8px; width: 20px; height: 20px; border-radius: 50%;
-    border: 1px solid var(--line); background: #fff; font-size: 11px; font-weight: 700;
-    color: var(--gold); cursor: pointer; display: flex; align-items: center; justify-content: center;
-    font-family: 'Courier New', monospace; padding: 0;
-  }
-  .ca-why-btn:hover { background: var(--gold); color: #fff; }
-  .ca-why-box {
-    grid-column: 1 / -1; background: #fff; border: 1px dashed var(--gold); border-radius: 3px;
-    padding: 12px 14px; font-size: 12.5px; line-height: 1.7; color: #4a3b2c; margin-top: -4px;
-  }
-
-  .ca-pours-label { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--ink); }
-  .ca-pours-track { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
-  .ca-pour-cell {
-    flex: 1; border-left: 1px solid var(--line); padding: 0 6px 10px; text-align: center; background: #fff;
-    display: flex; flex-direction: column;
-  }
-  .ca-pour-cell:last-child { border-left: none; }
-  .ca-pour-num {
-    font-family: 'Courier New', monospace; font-size: 10px; color: var(--gold); letter-spacing: .5px;
-    min-height: 30px; display: flex; align-items: center; justify-content: center;
-    border-bottom: 1px solid var(--line); padding: 8px 2px; margin-bottom: 8px;
-  }
-  .ca-pour-amt { font-size: 13px; font-weight: 700; }
-  .ca-pour-time { font-size: 10px; color: #8a7862; margin-top: 2px; }
-
-  .ca-notes {
-    font-size: 13px; line-height: 1.8; color: #4a3b2c; border-top: 1px dashed var(--line); padding-top: 14px;
-  }
-  .ca-status { text-align: center; font-size: 13px; color: #6b5a4a; padding: 24px 0; }
-  .ca-status.error { color: var(--error); }
-  .ca-disclaimer {
-    font-family: 'Courier New', monospace; font-size: 10px; color: #9a8b74;
-    text-align: center; margin-top: 20px; line-height: 1.6;
-  }
-
-  .ca-rating-block { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
-  .ca-rating-label { font-size: 13px; color: #4a3b2c; margin-bottom: 8px; }
-  .ca-rating-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .ca-stars { font-size: 26px; display: flex; gap: 4px; cursor: pointer; }
-  .ca-star { color: var(--line); transition: color .1s; }
-  .ca-star.filled { color: var(--gold); }
-  .ca-rating-thanks { font-size: 12.5px; color: #6b5a4a; margin-top: 6px; }
-
-  /* Cup personalization */
-  .ca-custom-card { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 20px; margin-top: 16px; }
-  .ca-custom-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
-  .ca-custom-hint { font-size: 12px; color: #8a7862; margin-bottom: 18px; }
-  .ca-slider-block { padding: 18px 0; border-bottom: 1px solid var(--line); }
-  .ca-slider-block:first-child { padding-top: 4px; }
-  .ca-slider-block:last-child { border-bottom: none; }
-  .ca-slider-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; margin-bottom: 10px; }
-  .ca-slider-band { font-family: 'Courier New', monospace; font-size: 11px; color: var(--ink); }
-
-  .ca-arrow-row { position: relative; height: 14px; }
-  .ca-baseline-arrow, .ca-refined-arrow {
-    position: absolute; top: 0; transform: translateX(50%); font-size: 12px; line-height: 1; pointer-events: none;
-  }
-  .ca-baseline-arrow { color: var(--ink); }
-  .ca-refined-arrow { color: var(--gold); }
-
-  .ca-slider-zones { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
-  .ca-slider-zone { flex: 1; }
-  .ca-slider-zone:nth-child(1) { background: #E7EFE3; }
-  .ca-slider-zone:nth-child(2) { background: #F3E9C9; }
-  .ca-slider-zone:nth-child(3) { background: #F0D2B0; }
-  .ca-slider-zone:nth-child(4) { background: #EAB69A; }
-
-  .ca-gold-label { font-family: 'Courier New', monospace; font-size: 11px; color: var(--gold); margin-top: 6px; margin-bottom: 10px; text-align: left; }
-
-  .ca-slider-input-plain {
-    width: 100%; appearance: none; -webkit-appearance: none; height: 6px; border-radius: 3px;
-    background: var(--line); cursor: pointer; display: block; margin-top: 4px;
-  }
-  .ca-slider-input-plain::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-    background: var(--ink); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); cursor: pointer;
-  }
-  .ca-slider-input-plain::-moz-range-thumb {
-    width: 18px; height: 18px; border-radius: 50%; background: var(--ink); border: 2px solid #fff; cursor: pointer;
-  }
-
-  .ca-extreme-warning { font-size: 11.5px; color: var(--error); margin-top: 10px; line-height: 1.6; }
-
-  .ca-legend-box {
-    display: flex; gap: 14px; flex-wrap: wrap; background: var(--parchment); border-radius: 4px;
-    padding: 10px 12px; margin: 16px auto 16px 0; width: fit-content; font-size: 11px; color: #4a3b2c;
-  }
-  .ca-legend-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
-  .ca-legend-icon { font-size: 12px; }
-
-  .ca-refine-btn {
-    width: 100%; padding: 13px 16px; border: none; background: var(--gold); color: #fff;
-    font-family: inherit; font-size: 14px; font-weight: 700; border-radius: 3px; cursor: pointer;
-    margin-top: 4px;
-  }
-  .ca-refine-btn:hover { opacity: .9; }
-  .ca-refine-btn:disabled { opacity: .5; cursor: not-allowed; }
-  .ca-compare-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-  .ca-compare-table th, .ca-compare-table td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--line); }
-  .ca-compare-table th { color: #6b5a4a; font-weight: 600; font-size: 11.5px; }
-  .ca-compare-table td.changed { color: var(--gold); font-weight: 700; }
-  .ca-compare-note { font-size: 12.5px; color: #4a3b2c; line-height: 1.7; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
-
-  /* Account bar */
-  .ca-account-bar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; font-size: 12.5px; }
-  .ca-account-link { color: var(--ink); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; font-size: 12.5px; padding: 0; }
-  .ca-account-email { color: #6b5a4a; }
-
-  /* Favorite button */
-  .ca-fav-btn {
-    position: absolute; top: 16px; left: 16px; background: none; border: none; font-size: 22px;
-    cursor: pointer; line-height: 1; padding: 0;
-  }
-
-  /* Auth modal */
-  .ca-modal-overlay {
-    position: fixed; inset: 0; background: rgba(43,29,20,0.5); display: flex;
-    align-items: center; justify-content: center; z-index: 50; padding: 20px;
-  }
-  .ca-modal-box { background: #fff; border-radius: 6px; padding: 24px; max-width: 360px; width: 100%; }
-  .ca-modal-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  .ca-modal-sub { font-size: 12.5px; color: #8a7862; margin-bottom: 18px; }
-  .ca-modal-field { margin-bottom: 12px; }
-  .ca-modal-field label { display: block; font-size: 12.5px; margin-bottom: 6px; color: #4a3b2c; }
-  .ca-modal-error { font-size: 12.5px; color: var(--error); margin-bottom: 12px; }
-  .ca-modal-switch { text-align: center; font-size: 12.5px; margin-top: 14px; color: #6b5a4a; }
-  .ca-modal-switch button { color: var(--gold); background: none; border: none; font-family: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; padding: 0; }
-  .ca-modal-close { position: absolute; top: 12px; left: 12px; }
-
-  /* Loading — mug */
-  .ca-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 0; }
-  .ca-loading-text { font-size: 13px; color: #6b5a4a; }
-  .mug-loader { width: 92px; height: 92px; overflow: visible; display: block; }
-
-  .mug-loader .hop { transform-box: fill-box; transform-origin: 50% 100%; animation: mug-hop .9s ease-in-out infinite; }
-  @keyframes mug-hop {
-    0%   { transform: translateY(0) rotate(0deg); }
-    22%  { transform: translateY(-14px) rotate(-4deg); }
-    45%  { transform: translateY(0) rotate(0deg); }
-    68%  { transform: translateY(-14px) rotate(4deg); }
-    90%  { transform: translateY(0) rotate(0deg); }
-    100% { transform: translateY(0) rotate(0deg); }
-  }
-  .mug-loader .leg-l { transform-box: fill-box; transform-origin: 100% 0%; animation: leg-l-swing .9s ease-in-out infinite; }
-  .mug-loader .leg-r { transform-box: fill-box; transform-origin: 0% 0%; animation: leg-r-swing .9s ease-in-out infinite; }
-  @keyframes leg-l-swing { 0%,100% { transform: rotate(0deg); } 22% { transform: rotate(-16deg); } 45% { transform: rotate(10deg); } 68% { transform: rotate(-4deg); } }
-  @keyframes leg-r-swing { 0%,100% { transform: rotate(0deg); } 22% { transform: rotate(4deg); } 45% { transform: rotate(-10deg); } 68% { transform: rotate(16deg); } }
-
-  .mug-loader .shadow { transform-box: fill-box; transform-origin: 50% 50%; animation: mug-shadow .9s ease-in-out infinite; }
-  @keyframes mug-shadow {
-    0%   { transform: scaleX(1);    opacity: 0.4; }
-    22%  { transform: scaleX(0.72); opacity: 0.22; }
-    45%  { transform: scaleX(1);    opacity: 0.4; }
-    68%  { transform: scaleX(0.72); opacity: 0.22; }
-    100% { transform: scaleX(1);    opacity: 0.4; }
-  }
-
-  .mug-loader .drop { opacity: 0; animation: drop-fly 1.8s ease-out infinite; }
-  .mug-loader .drop.d2 { animation-delay: 0.6s; }
-  .mug-loader .drop.d3 { animation-delay: 1.2s; }
-  @keyframes drop-fly {
-    0%   { transform: translate(0, 0) scale(0.4); opacity: 0; }
-    8%   { opacity: 1; }
-    55%  { transform: translate(var(--dx, 6px), -46px) scale(1); opacity: 1; }
-    80%  { transform: translate(calc(var(--dx, 6px) * 1.4), -66px) scale(0.8); opacity: 0; }
-    100% { opacity: 0; transform: translate(calc(var(--dx, 6px) * 1.4), -66px) scale(0.8); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .mug-loader .hop, .mug-loader .leg-l, .mug-loader .leg-r,
-    .mug-loader .shadow, .mug-loader .drop { animation-duration: 2.4s; }
-  }
-</style>
-<script type="text/babel">
-const { useState, useRef } = React;
-
-// رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "19.10.11.05.03.25.06.01";
-
-const GRINDERS = {
-  "Comandante": ["C40 MK3", "C40 MK4"],
-  "1Zpresso": ["J-Max", "JX-Pro", "K-Max", "Q2", "ZP6"],
-  "Baratza": ["Encore", "Encore ESP", "Sette 270", "Virtuoso+"],
-  "Fellow": ["Ode Gen 2", "Opus"],
-  "Timemore": ["C2", "C3", "Chestnut X"],
-  "Hario": ["Skerton Pro", "Mini Mill"],
-  "DF64": ["DF64", "DF64 Gen 2"],
-  "Eureka": ["Mignon Specialita"],
-  "Niche": ["Niche Zero"]
-};
-
-// تقدير تقريبي لكمية المشروب النهائي حسب عدد الأكواب (280 إلى 300 مل لكل كوب).
-// نستخدم <span dir="ltr"> عشان الأرقام ما تنعكس بصريًا داخل سياق الصفحة RTL.
-function CupAmount({ n }) {
-  return <span><span dir="ltr" style={{ unicodeBidi: "isolate" }}>{280 * n}-{300 * n}</span> مل</span>;
+function isValidEmail(email) {
+  // تحقق واقعي من صيغة الإيميل: اسم@نطاق.امتداد — يرفض أي كلام عشوائي
+  const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  return pattern.test(email);
 }
 
-// تصنيف قيمة المنزلق (0-100) لأربع مناطق نوعية
-function sensoryBand(val) {
-  if (val < 25) return "منخفضة";
-  if (val < 50) return "متوسطة";
-  if (val < 75) return "مرتفعة";
-  return "عالية جدًا";
+function normalizeEmail(email) {
+  return (email || "").toString().trim().toLowerCase();
 }
 
-const SENSORY_META = [
-  { key: "acidity", label: "الإحساس بالحمضية", emoji: "🍋" },
-  { key: "sweetness", label: "الحلاوة", emoji: "🍯" },
-  { key: "body", label: "القوام", emoji: "🥛" },
-  { key: "bitterness", label: "المرارة", emoji: "☕" }
-];
-
-// محرك المعاينة المحلية: يحسب فوريًا (بدون Claude) تغيّر تقريبي بالحرارة/النسبة/الطحن
-// بناءً على فرق كل منزلق عن قيمته الأصلية. هذا تقدير تقريبي مترابط للعرض السريع فقط —
-// الوصفة الحقيقية النهائية تجي من زر "تحسين الوصفة" اللي يستشير Claude فعليًا.
-function computePreview(baseline, sliders, cupCount) {
-  const d = {
-    acidity: sliders.acidity - baseline.acidity,
-    sweetness: sliders.sweetness - baseline.sweetness,
-    body: sliders.body - baseline.body,
-    bitterness: sliders.bitterness - baseline.bitterness
-  };
-
-  let tempDelta = (-0.3 * d.acidity + 0.25 * d.sweetness + 0.15 * d.body + 0.3 * d.bitterness) / 10;
-  tempDelta = Math.max(-3, Math.min(3, tempDelta));
-
-  let ratioDelta = (0.15 * d.acidity - 0.15 * d.sweetness - 0.2 * d.body + 0.05 * d.bitterness) / 10;
-  ratioDelta = Math.max(-1.5, Math.min(1.5, ratioDelta));
-
-  let grindScore = (0.4 * d.acidity - 0.2 * d.sweetness - 0.3 * d.body - 0.3 * d.bitterness) / 10;
-
-  return { tempDelta, ratioDelta, grindScore, d };
+// تشفير كلمة المرور بدون مكتبات خارجية — PBKDF2 المدمجة بـ Node.js
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 100000, 64, "sha512").toString("hex");
 }
 
-function buildExplanation(preview) {
-  const parts = [];
-  const { tempDelta, ratioDelta, grindScore, d } = preview;
-  const significant = Object.entries(d).filter(([, v]) => Math.abs(v) >= 8);
-  if (significant.length === 0) return "";
-
-  if (Math.abs(tempDelta) >= 0.4) {
-    parts.push(tempDelta > 0 ? "رفعنا الحرارة قليلًا" : "خفّفنا الحرارة قليلًا");
-  }
-  if (Math.abs(ratioDelta) >= 0.15) {
-    parts.push(ratioDelta > 0 ? "خفّفنا تركيز النسبة" : "قوّينا تركيز النسبة");
-  }
-  if (Math.abs(grindScore) >= 0.15) {
-    parts.push(grindScore > 0 ? "خشّنا الطحنة قليلًا" : "طحنّا أنعم قليلًا");
-  }
-  if (parts.length === 0) return "";
-
-  const goalNames = significant.map(([k]) => SENSORY_META.find(m => m.key === k).label);
-  return `${parts.join("، و")} لتعديل ${goalNames.join(" و")} مع الحفاظ على شخصية البن الأصلية.`;
+function verifyPassword(password, salt, expectedHash) {
+  const actualHash = hashPassword(password, salt);
+  return crypto.timingSafeEqual(Buffer.from(actualHash), Buffer.from(expectedHash));
 }
 
-function MugLoader({ className = "", label = "جارٍ التحليل" }) {
-  return (
-    <svg className={`mug-loader ${className}`} viewBox="0 0 200 220" role="img" aria-label={label}>
-      <ellipse className="shadow" cx="100" cy="204" rx="34" ry="7" fill="var(--ink)" opacity="0.4"/>
-      <g className="hop">
-        <path className="leg-l" d="M88,176 L79,192 L70,201" fill="none" stroke="var(--ink)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
-        <path className="leg-r" d="M112,176 L121,192 L130,201" fill="none" stroke="var(--ink)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M62,92 C40,86 32,110 39,124 C45,136 62,135 65,122 L58,120 C56,127 47,127 44,120 C40,111 45,97 63,101 Z" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="5" strokeLinejoin="round"/>
-        <path d="M58,70 L58,150 Q58,165 74,165 L126,165 Q142,165 142,150 L142,70 Z" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="6" strokeLinejoin="round"/>
-        <path d="M78,72 C74,58 82,50 78,38 C90,44 90,60 82,72 Z" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="4.5" strokeLinejoin="round"/>
-        <path d="M104,70 C100,52 112,46 108,30 C122,38 120,58 112,70 Z" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="4.5" strokeLinejoin="round"/>
-        <ellipse cx="100" cy="70" rx="42" ry="15" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="6"/>
-        <ellipse cx="100" cy="71" rx="32" ry="9.5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="3.5"/>
-        <circle cx="110" cy="122" r="4.6" fill="var(--ink)"/>
-        <circle cx="128" cy="122" r="4.6" fill="var(--ink)"/>
-        <path d="M112,136 Q119,144 126,136 Q119,140 112,136 Z" fill="#fff" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round"/>
-      </g>
-      <circle className="drop d1" style={{ "--dx": "-14px" }} cx="82" cy="55" r="4.5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
-      <circle className="drop d2" style={{ "--dx": "4px" }} cx="100" cy="48" r="5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
-      <circle className="drop d3" style={{ "--dx": "18px" }} cx="118" cy="55" r="4" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
-      <defs>
-        <linearGradient id="mugGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--mug-a)"/>
-          <stop offset="1" stopColor="var(--mug-b)"/>
-        </linearGradient>
-      </defs>
-    </svg>
+function makeToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function setSessionCookie(res, token) {
+  res.setHeader(
+    "Set-Cookie",
+    `mohal_session=${token}; Max-Age=${SESSION_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Lax`
   );
 }
 
-function CoffeeApp() {
-  const [cupCount, setCupCount] = useState(1);
-  const [temp, setTemp] = useState(null);
-  const [tempWarning, setTempWarning] = useState(false);
-  const [grinderMode, setGrinderMode] = useState("list");
-  const [grinderBrand, setGrinderBrand] = useState("");
-  const [grinderModel, setGrinderModel] = useState("");
-  const [grinderCustom, setGrinderCustom] = useState("");
-  const [grinderWarning, setGrinderWarning] = useState(false);
-  const [stream, setStream] = useState(null);
-  const [captured, setCaptured] = useState(null);
-  const [status, setStatus] = useState("idle");
-  const [result, setResult] = useState(null);
-  const [errMsg, setErrMsg] = useState("");
-  const [openWhy, setOpenWhy] = useState(null);
-  const [roasteryInput, setRoasteryInput] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [savedBeansId, setSavedBeansId] = useState(null);
-  const [savedRoasteryId, setSavedRoasteryId] = useState(null);
-  const [pendingRating, setPendingRating] = useState(0);
-  const [ratingSubmitted, setRatingSubmitted] = useState(false);
-  const [knownRoasteries, setKnownRoasteries] = useState([]);
-  const [showRoasteryDropdown, setShowRoasteryDropdown] = useState(false);
-
-  // تخصيص الكوب
-  const [sliders, setSliders] = useState(null); // يبدأ بنفس القيم الأصلية من sensory
-  const [originalSensory, setOriginalSensory] = useState(null); // الأساس الثابت الدائم — ما يتغير أبدًا حتى بعد التحسين
-  const [refining, setRefining] = useState(false);
-  const [refineError, setRefineError] = useState("");
-  const [comparison, setComparison] = useState(null); // { original, refined }
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-
-  // الحساب والمفضلة
-  const [user, setUser] = useState(null); // null = ما سجّل دخول
-  const [authChecked, setAuthChecked] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState("login"); // login | signup
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authName, setAuthName] = useState("");
-  const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [isFavorited, setIsFavorited] = useState(false);
-
-  React.useEffect(() => {
-    fetch("/api/auth?action=me")
-      .then(r => r.json())
-      .then(d => { setUser(d.loggedIn ? d.user : null); setAuthChecked(true); })
-      .catch(() => setAuthChecked(true));
-  }, []);
-
-  const submitAuth = async () => {
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const response = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: authMode,
-          email: authEmail,
-          password: authPassword,
-          displayName: authName
-        })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "حدث خطأ");
-      setUser(data.user);
-      setShowAuthModal(false);
-      setAuthEmail(""); setAuthPassword(""); setAuthName("");
-    } catch (e) {
-      setAuthError(e.message);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
-    setUser(null);
-  };
-
-  const toggleFavorite = async () => {
-    if (!user) {
-      setShowAuthModal(true);
-      setAuthMode("login");
-      return;
-    }
-    try {
-      if (isFavorited) {
-        await fetch("/api/favorites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "remove", beansId: savedBeansId })
-        });
-        setIsFavorited(false);
-      } else {
-        await fetch("/api/favorites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "add", beansId: savedBeansId, recipe: result })
-        });
-        setIsFavorited(true);
-      }
-    } catch (e) {
-      console.error("favorite toggle failed", e);
-    }
-  };
-
-  const grinderInfoLabel =
-    grinderMode === "list" && grinderBrand && grinderModel ? `${grinderBrand} ${grinderModel}`
-    : grinderMode === "custom" && grinderCustom.trim() ? grinderCustom.trim()
-    : "";
-
-  const startCamera = async () => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      setStream(s);
-      setStatus("camera");
-      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = s; }, 50);
-    } catch (e) {
-      setErrMsg("تعذر الوصول للكاميرا. تأكد من إعطاء الإذن للمتصفح.");
-      setStatus("error");
-    }
-  };
-
-  const stopCamera = () => { if (stream) stream.getTracks().forEach(t => t.stop()); setStream(null); };
-
-  const capture = () => {
-    const video = videoRef.current, canvas = canvasRef.current;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    setCaptured(canvas.toDataURL("image/jpeg", 0.85));
-    stopCamera();
-    setStatus("captured");
-  };
-
-  const retake = () => { setCaptured(null); setResult(null); startCamera(); };
-
-  const analyze = async () => {
-    if (!temp) {
-      setTempWarning(true);
-      return;
-    }
-    setTempWarning(false);
-
-    if (grinderMode === "list" && (!grinderBrand || !grinderModel)) {
-      setGrinderWarning(true);
-      return;
-    }
-    setGrinderWarning(false);
-
-    setStatus("loading");
-    setOpenWhy(null);
-    try {
-      const base64Data = captured.split(",")[1];
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: base64Data,
-          tempChoice: temp,
-          grinderInfo: grinderInfoLabel || null,
-          cupCount
-        })
-      });
-
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || "فشل الاتصال");
-      }
-      const parsed = await response.json();
-      setResult(parsed);
-      setSaved(false);
-      setSavedBeansId(null);
-      setSavedRoasteryId(null);
-      setIsFavorited(false);
-      setRoasteryInput("");
-      setPendingRating(0);
-      setRatingSubmitted(false);
-      setComparison(null);
-      setRefineError("");
-      setSliders(parsed.sensory ? { ...parsed.sensory } : null);
-      setOriginalSensory(parsed.sensory ? { ...parsed.sensory } : null);
-      setStatus("done");
-
-      const roasteryForRecord =
-        parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== ""
-          ? parsed.roastery_name
-          : "غير محدد";
-      recordSearch(parsed, roasteryForRecord);
-
-      if (roasteryForRecord === "غير محدد") {
-        fetch("/api/record")
-          .then(r => r.json())
-          .then(d => setKnownRoasteries(d.roasteries || []))
-          .catch(() => {});
-      }
-    } catch (e) {
-      setErrMsg(e.message || "حدث خطأ أثناء التحليل. جرّب مرة أخرى.");
-      setStatus("error");
-    }
-  };
-
-  const recordSearch = async (parsedResult, roasteryName, isCorrection = false) => {
-    try {
-      const res = await fetch("/api/record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          coffeeType: parsedResult.coffee_type,
-          origin: parsedResult.origin || null,
-          process: parsedResult.process || null,
-          roastLevel: parsedResult.roast_level,
-          roasteryName,
-          tempChoice: temp,
-          correction: isCorrection,
-          previousBeansId: isCorrection ? savedBeansId : null,
-          previousRoasteryId: isCorrection ? savedRoasteryId : null,
-          grinderMode: isCorrection ? null : grinderMode,
-          grinderBrand: isCorrection ? null : grinderBrand,
-          grinderModel: isCorrection ? null : grinderModel,
-          grinderCustom: isCorrection ? null : grinderCustom
-        })
-      });
-      const data = await res.json();
-      setSaved(true);
-      if (data.beansId) setSavedBeansId(data.beansId);
-      if (data.roasteryId) setSavedRoasteryId(data.roasteryId);
-    } catch (e) {
-      console.error("record failed", e);
-    }
-  };
-
-  const submitRating = async () => {
-    if (!pendingRating || !savedBeansId) return;
-    try {
-      await fetch("/api/rate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: pendingRating })
-      });
-      setRatingSubmitted(true);
-    } catch (e) {
-      console.error("rating failed", e);
-    }
-  };
-
-  const toggleWhy = (key) => setOpenWhy(openWhy === key ? null : key);
-
-  const refineRecipe = async () => {
-    if (!result || !sliders) return;
-    setRefining(true);
-    setRefineError("");
-    try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "refine",
-          beanProfile: {
-            coffee_type: result.coffee_type,
-            roast_level: result.roast_level,
-            origin: result.origin,
-            process: result.process,
-            roastery_name: result.roastery_name
-          },
-          originalRecipe: result,
-          targetSensory: sliders,
-          tempChoice: temp,
-          cupCount
-        })
-      });
-      if (!response.ok) {
-        const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || "فشل التحسين");
-      }
-      const refined = await response.json();
-      setComparison({ original: result, refined });
-      setResult(refined);
-    } catch (e) {
-      setRefineError(e.message || "حدث خطأ أثناء تحسين الوصفة");
-    } finally {
-      setRefining(false);
-    }
-  };
-
-  return (
-    <div className="ca-wrap">
-      {authChecked && (
-        <div className="ca-account-bar">
-          {user ? (
-            <>
-              <span className="ca-account-email">{user.email}</span>
-              <button className="ca-account-link" onClick={logout}>خروج</button>
-            </>
-          ) : (
-            <button className="ca-account-link" onClick={() => { setShowAuthModal(true); setAuthMode("login"); setAuthError(""); }}>تسجيل الدخول</button>
-          )}
-        </div>
-      )}
-
-      <div className="ca-eyebrow">الإصدار {APP_VERSION}</div>
-      <div className="ca-title-row">
-        <h1 className="ca-title">مُــهـل</h1>
-        <MugLoader className="mug-loader-brand" label="مُــهـل" />
-      </div>
-
-      <div className="ca-cup-select">
-        <div className="ca-cup-label">كم كوب تبي تحضّر؟</div>
-        <div className="ca-cup-options">
-          {[1, 2, 3].map(n => (
-            <button
-              key={n}
-              className={`ca-cup-btn ${cupCount === n ? "active" : ""}`}
-              onClick={() => setCupCount(n)}
-            >
-              <div className="ca-cup-emoji">{"☕️".repeat(n)}</div>
-              <div className="ca-cup-amount"><CupAmount n={n} /></div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="ca-grinder-select">
-        <div className="ca-grinder-hint">لطعم أفضل، حدد نوع طاحونتك (اختياري)</div>
-        <div className="ca-grinder-modes">
-          <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => { setGrinderMode("list"); setGrinderWarning(false); }}>اختر من القائمة</button>
-          <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => { setGrinderMode("custom"); setGrinderWarning(false); }}>اكتب اسمها</button>
-          <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => { setGrinderMode("none"); setGrinderWarning(false); }}>بدون تحديد</button>
-        </div>
-
-        {grinderMode === "list" && (
-          <div className="ca-grinder-fields">
-            <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); setGrinderWarning(false); }}>
-              <option value="">الشركة المصنعة</option>
-              {Object.keys(GRINDERS).map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select className="ca-select" value={grinderModel} onChange={(e) => { setGrinderModel(e.target.value); setGrinderWarning(false); }} disabled={!grinderBrand}>
-              <option value="">الموديل</option>
-              {(GRINDERS[grinderBrand] || []).map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        )}
-
-        {grinderMode === "custom" && (
-          <input
-            className="ca-text-input"
-            type="text"
-            placeholder="اكتب اسم الشركة، الموديل، وعدد درجات الطحن (مثال: XYZ - موديل ABC - من 1 إلى 40)"
-            value={grinderCustom}
-            onChange={(e) => setGrinderCustom(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        )}
-
-        {grinderWarning && <div className="ca-grinder-warning">اختر طاحونتك من القائمة، أو اختر "بدون تحديد"</div>}
-      </div>
-
-      <div className="ca-temp-select">
-        <div className="ca-temp-label">طريقة التحضير</div>
-        <div className="ca-temp-options">
-          <div className={`ca-temp-card ${temp === "hot" ? "active-hot" : ""}`} onClick={() => { setTemp("hot"); setTempWarning(false); }}>
-            <div className="ca-temp-card-title" style={{color: temp === "hot" ? "#C4572B" : "#2B1D14"}}>حار</div>
-          </div>
-          <div className={`ca-temp-card ${temp === "cold" ? "active-cold" : ""}`} onClick={() => { setTemp("cold"); setTempWarning(false); }}>
-            <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>بارد</div>
-          </div>
-        </div>
-        {tempWarning && <div className="ca-temp-warning">اختار نوع التحضير</div>}
-      </div>
-
-      <div className={`ca-stage ${!stream && !captured ? "empty" : ""}`}>
-        {stream && <video ref={videoRef} autoPlay playsInline muted />}
-        {captured && <img src={captured} alt="القهوة الملتقطة" />}
-      </div>
-      <canvas ref={canvasRef} className="hidden" />
-
-      {status === "idle" && (
-        <div className="ca-btnrow"><button className="ca-btn" onClick={startCamera}>تشغيل الكاميرا</button></div>
-      )}
-      {status === "camera" && (
-        <div className="ca-btnrow">
-          <button className="ca-btn" onClick={capture}>التقاط الصورة</button>
-          <button className="ca-btn secondary" onClick={stopCamera}>إلغاء</button>
-        </div>
-      )}
-      {status === "captured" && (
-        <div className="ca-btnrow">
-          <button className="ca-btn" onClick={analyze}>تحليل الصورة</button>
-          <button className="ca-btn secondary" onClick={retake}>إعادة التصوير</button>
-        </div>
-      )}
-      {status === "loading" && (
-        <div className="ca-loading">
-          <MugLoader />
-          <div className="ca-loading-text">جارٍ تحليل الصورة وتجهيز الشرح...</div>
-        </div>
-      )}
-      {status === "error" && (
-        <>
-          <div className="ca-status error">{errMsg}</div>
-          <div className="ca-btnrow">
-            <button className="ca-btn" onClick={() => { setStatus("idle"); setCaptured(null); }}>حاول من جديد</button>
-          </div>
-        </>
-      )}
-
-      {status === "done" && result && (
-        <>
-          <hr className="ca-divider" />
-          <div className="ca-ticket" style={{ position: "relative" }}>
-            {savedBeansId && (
-              <button className="ca-fav-btn" onClick={toggleFavorite} title="أضف للمفضلة">
-                {isFavorited ? "❤️" : "🤍"}
-              </button>
-            )}
-            <div className="ca-ticket-label">النوع والتحميص</div>
-            <div className="ca-ticket-name">{result.coffee_type} · {result.roast_level}</div>
-
-            <div className="ca-metrics">
-              <div className="ca-metric">
-                <button className="ca-why-btn" onClick={() => toggleWhy("amount")}>؟</button>
-                <div className="ca-metric-val">{result.amount_grams}</div>
-                <div className="ca-metric-key">كمية البن المقترحة</div>
-              </div>
-              <div className="ca-metric">
-                <button className="ca-why-btn" onClick={() => toggleWhy("temp")}>؟</button>
-                <div className="ca-metric-val">{result.temperature_c}°</div>
-                <div className="ca-metric-key">درجة الحرارة (م)</div>
-              </div>
-              {openWhy === "amount" && <div className="ca-why-box">{result.why_amount}</div>}
-              {openWhy === "temp" && <div className="ca-why-box">{result.why_temperature}</div>}
-
-              <div className="ca-metric">
-                <button className="ca-why-btn" onClick={() => toggleWhy("pours")}>؟</button>
-                <div className="ca-metric-val">{result.pours_count}</div>
-                <div className="ca-metric-key">عدد الصبات</div>
-              </div>
-              {temp === "cold" ? (
-                <div className="ca-metric">
-                  <button className="ca-why-btn" onClick={() => toggleWhy("ice")}>؟</button>
-                  <div className="ca-metric-val">{result.ice_amount}</div>
-                  <div className="ca-metric-key">كمية الثلج المقترحة</div>
-                </div>
-              ) : (
-                <div className="ca-metric">
-                  <button className="ca-why-btn" onClick={() => toggleWhy("ratio")}>؟</button>
-                  <div className="ca-metric-val">{result.brew_ratio}</div>
-                  <div className="ca-metric-key">نسبة القهوة للماء</div>
-                </div>
-              )}
-              {openWhy === "pours" && <div className="ca-why-box">{result.why_pours}</div>}
-              {openWhy === "ice" && <div className="ca-why-box">{result.why_ice}</div>}
-              {temp !== "cold" && openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
-
-              {temp === "cold" && (
-                <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
-                  <button className="ca-why-btn" onClick={() => toggleWhy("ratio")}>؟</button>
-                  <div className="ca-metric-val">{result.brew_ratio}</div>
-                  <div className="ca-metric-key">نسبة القهوة للماء</div>
-                </div>
-              )}
-              {temp === "cold" && openWhy === "ratio" && <div className="ca-why-box">{result.why_ratio}</div>}
-
-              {result.grind_setting && (
-                <div className="ca-metric" style={{ gridColumn: "1 / -1" }}>
-                  <button className="ca-why-btn" onClick={() => toggleWhy("grind")}>؟</button>
-                  <div className="ca-metric-val">{result.grind_setting}</div>
-                  <div className="ca-metric-key">
-                    {grinderInfoLabel ? `رقم الطحنة المقترح — ${grinderInfoLabel}` : "درجة الطحن المقترحة"}
-                  </div>
-                </div>
-              )}
-              {openWhy === "grind" && <div className="ca-why-box">{result.why_grind}</div>}
-            </div>
-
-            {result.pours_breakdown && result.pours_breakdown.length > 0 && (
-              <>
-                <div className="ca-pours-label">جدول الصبات</div>
-                <div className="ca-pours-track">
-                  {result.pours_breakdown.map((p, i) => (
-                    <div className="ca-pour-cell" key={i}>
-                      <div className="ca-pour-num">{p.label}</div>
-                      <div className="ca-pour-amt">{p.amount}</div>
-                      <div className="ca-pour-time">{p.time}</div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <div className="ca-notes">{result.notes}</div>
-
-            {(!result.roastery_name || result.roastery_name.toLowerCase() === "unknown" || result.roastery_name.trim() === "") && (
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed var(--line)" }}>
-                <div style={{ fontSize: 13, marginBottom: 8, color: "#4a3b2c" }}>ما قدرنا نتعرف على اسم المحمصة من الصورة — تكتبه لنا؟ (اختياري)</div>
-                {knownRoasteries.length > 0 && (
-                  <div style={{ fontSize: 11.5, color: "#8a7862", marginBottom: 6 }}>لو محمصتك موجودة بالقائمة أثناء الكتابة، اخترها بدل ما تكتب اسم جديد — يفيد بتوحيد البيانات.</div>
-                )}
-                <div style={{ display: "flex", gap: 8 }}>
-                  <div className="ca-roastery-wrap">
-                    <input
-                      className="ca-text-input"
-                      type="text"
-                      placeholder="اسم المحمصة"
-                      value={roasteryInput}
-                      onFocus={() => setShowRoasteryDropdown(true)}
-                      onBlur={() => setTimeout(() => setShowRoasteryDropdown(false), 150)}
-                      onChange={(e) => { setRoasteryInput(e.target.value); setShowRoasteryDropdown(true); }}
-                      style={{ width: "100%" }}
-                    />
-                  </div>
-                  <button
-                    className="ca-btn small"
-                    onClick={() => recordSearch(result, roasteryInput.trim() || "غير محدد", true)}
-                  >
-                    حفظ
-                  </button>
-                </div>
-                {showRoasteryDropdown && knownRoasteries.filter(n => n !== "غير محدد").length > 0 && (
-                  <div className="ca-roastery-dropdown">
-                    {knownRoasteries
-                      .filter(name => name !== "غير محدد")
-                      .filter(name => !roasteryInput.trim() || name.toLowerCase().includes(roasteryInput.trim().toLowerCase()))
-                      .map((name, i) => (
-                        <div
-                          key={i}
-                          className="ca-roastery-option"
-                          onClick={() => { setRoasteryInput(name); setShowRoasteryDropdown(false); }}
-                        >
-                          {name}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="ca-rating-block">
-              <div className="ca-rating-label">قيّم كوبك</div>
-              <div className="ca-rating-row">
-                <div className="ca-stars">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <span
-                      key={n}
-                      className={`ca-star ${n <= pendingRating ? "filled" : ""}`}
-                      onClick={() => setPendingRating(n)}
-                    >★</span>
-                  ))}
-                </div>
-                <button className="ca-btn small" onClick={submitRating} disabled={!pendingRating}>إرسال التقييم</button>
-              </div>
-              {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
-            </div>
-          </div>
-
-          {sliders && (
-            <div className="ca-custom-card">
-              <div className="ca-custom-title">خصّص كوبك</div>
-              <div className="ca-custom-hint">حرّك المنزلقات لتشكيل شخصية الكوب اللي تبيها — النظام يقترب من ذوقك بدون ما يغيّر طبيعة البن الأصلية.</div>
-
-              {(() => {
-                const baseline = originalSensory;
-
-                return (
-                  <>
-                    {SENSORY_META.map(({ key, label, emoji }) => {
-                      const baseVal = baseline ? baseline[key] : sliders[key];
-                      const minAllowed = Math.max(0, baseVal - 30);
-                      const maxAllowed = Math.min(100, baseVal + 30);
-                      // السهم الذهبي يتبع الأسود دائمًا حتى يضغط العميل "تحسين الوصفة" —
-                      // ما يتحرك مع سحب المنزلق، بس يقفز لموقع النتيجة الفعلية بعد التحسين
-                      const goldVal = comparison ? comparison.refined.sensory[key] : baseVal;
-                      const isExtreme = sliders[key] === 0 || sliders[key] === 100;
-                      return (
-                        <div className="ca-slider-block" key={key}>
-                          <div className="ca-slider-label">
-                            <span>{emoji} {label}</span>
-                            <span className="ca-slider-band">{baseVal}% · {sensoryBand(baseVal)}</span>
-                          </div>
-
-                          <div className="ca-arrow-row">
-                            <div className="ca-baseline-arrow" style={{ right: `${baseVal}%` }}>▼</div>
-                          </div>
-                          <div className="ca-slider-zones">
-                            <div className="ca-slider-zone"></div>
-                            <div className="ca-slider-zone"></div>
-                            <div className="ca-slider-zone"></div>
-                            <div className="ca-slider-zone"></div>
-                          </div>
-                          <div className="ca-arrow-row">
-                            <div className="ca-refined-arrow" style={{ right: `${goldVal}%` }}>▲</div>
-                          </div>
-                          <div className="ca-gold-label">{goldVal}% · {sensoryBand(goldVal)}</div>
-
-                          <input
-                            className="ca-slider-input-plain"
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={sliders[key]}
-                            onChange={(e) => {
-                              const requested = Number(e.target.value);
-                              const clamped = Math.min(maxAllowed, Math.max(minAllowed, requested));
-                              setSliders({ ...sliders, [key]: clamped });
-                            }}
-                          />
-                          {isExtreme && (
-                            <div className="ca-extreme-warning">⚠️ {sliders[key]}% قيمة متطرفة غير واقعية لهذا البن — النتيجة النهائية بتقترب منها قدر الإمكان بس بدون الوصول لها فعليًا.</div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    <div className="ca-legend-box">
-                      <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--ink)"}}>▼</span> طعم البن الأصلي (ثابت)</div>
-                      <div className="ca-legend-item"><span className="ca-legend-icon" style={{color: "var(--gold)"}}>▲</span> النتيجة بعد التحسين</div>
-                    </div>
-
-                    <button className="ca-refine-btn" onClick={refineRecipe} disabled={refining}>
-                      {refining ? "جارٍ التحسين..." : "✨ تحسين الوصفة"}
-                    </button>
-                    {refineError && <div className="ca-status error" style={{ padding: "10px 0" }}>{refineError}</div>}
-                  </>
-                );
-              })()}
-
-              {comparison && (
-                <>
-                  <table className="ca-compare-table">
-                    <thead>
-                      <tr><th>العنصر</th><th>الأصلية</th><th>بعد التخصيص</th></tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>كمية البن</td>
-                        <td>{comparison.original.amount_grams}</td>
-                        <td className={comparison.original.amount_grams !== comparison.refined.amount_grams ? "changed" : ""}>{comparison.refined.amount_grams}</td>
-                      </tr>
-                      <tr>
-                        <td>الحرارة</td>
-                        <td>{comparison.original.temperature_c}°</td>
-                        <td className={comparison.original.temperature_c !== comparison.refined.temperature_c ? "changed" : ""}>{comparison.refined.temperature_c}°</td>
-                      </tr>
-                      <tr>
-                        <td>الطحن</td>
-                        <td>{comparison.original.grind_setting}</td>
-                        <td className={comparison.original.grind_setting !== comparison.refined.grind_setting ? "changed" : ""}>{comparison.refined.grind_setting}</td>
-                      </tr>
-                      <tr>
-                        <td>النسبة</td>
-                        <td>{comparison.original.brew_ratio}</td>
-                        <td className={comparison.original.brew_ratio !== comparison.refined.brew_ratio ? "changed" : ""}>{comparison.refined.brew_ratio}</td>
-                      </tr>
-                      <tr>
-                        <td>الصبات</td>
-                        <td>{comparison.original.pours_count}</td>
-                        <td className={comparison.original.pours_count !== comparison.refined.pours_count ? "changed" : ""}>{comparison.refined.pours_count}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div className="ca-compare-note">تم تعديل الوصفة لتناسب ذائقتك مع المحافظة على شخصية هذا البن الأصلية. {comparison.refined.notes}</div>
-                </>
-              )}
-            </div>
-          )}
-
-          <div className="ca-btnrow" style={{ marginTop: 16 }}>
-            <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setResult(null); setOpenWhy(null); }}>تجربة صورة أخرى</button>
-          </div>
-        </>
-      )}
-
-      <div className="ca-disclaimer">
-        {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
-      </div>
-
-      {showAuthModal && (
-        <div className="ca-modal-overlay" onClick={() => setShowAuthModal(false)}>
-          <div className="ca-modal-box" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
-            <button className="ca-account-link ca-modal-close" onClick={() => setShowAuthModal(false)}>✕</button>
-            <div className="ca-modal-title">{authMode === "login" ? "تسجيل الدخول" : "إنشاء حساب"}</div>
-            <div className="ca-modal-sub">{authMode === "login" ? "سجّل دخولك للوصول لمحاصيلك المحفوظة" : "أنشئ حساب لتحفظ المحاصيل اللي تعجبك"}</div>
-
-            {authMode === "signup" && (
-              <div className="ca-modal-field">
-                <label>اسمك (اختياري)</label>
-                <input className="ca-text-input" style={{ width: "100%" }} type="text" value={authName} onChange={(e) => setAuthName(e.target.value)} />
-              </div>
-            )}
-            <div className="ca-modal-field">
-              <label>البريد الإلكتروني</label>
-              <input className="ca-text-input" style={{ width: "100%" }} type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="example@email.com" />
-            </div>
-            <div className="ca-modal-field">
-              <label>كلمة المرور</label>
-              <input className="ca-text-input" style={{ width: "100%" }} type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="6 أحرف على الأقل" />
-            </div>
-
-            {authError && <div className="ca-modal-error">{authError}</div>}
-
-            <button className="ca-btn" style={{ width: "100%" }} onClick={submitAuth} disabled={authLoading}>
-              {authLoading ? "جارٍ التحقق..." : (authMode === "login" ? "دخول" : "إنشاء الحساب")}
-            </button>
-
-            <div className="ca-modal-switch">
-              {authMode === "login" ? (
-                <>ما عندك حساب؟ <button onClick={() => { setAuthMode("signup"); setAuthError(""); }}>أنشئ واحد</button></>
-              ) : (
-                <>عندك حساب؟ <button onClick={() => { setAuthMode("login"); setAuthError(""); }}>سجّل دخول</button></>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function clearSessionCookie(res) {
+  res.setHeader("Set-Cookie", `mohal_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`);
 }
 
-ReactDOM.render(<CoffeeApp />, document.getElementById("coffee-app"));
-</script>
-</body>
-</html>
+function getCookie(req, name) {
+  const raw = req.headers.cookie || "";
+  const match = raw.split(";").map(s => s.trim()).find(s => s.startsWith(`${name}=`));
+  return match ? match.split("=")[1] : null;
+}
+
+async function createSession(userId, res) {
+  const token = makeToken();
+  await redis.set(`session:${token}`, userId, { ex: SESSION_SECONDS });
+  setSessionCookie(res, token);
+  return token;
+}
+
+async function getUserFromSession(req) {
+  const token = getCookie(req, "mohal_session");
+  if (!token) return null;
+  const userId = await redis.get(`session:${token}`);
+  if (!userId) return null;
+  const user = await redis.hgetall(`user:${userId}`);
+  if (!user || !user.email) return null;
+  // غياب حقل role يعني "مستخدم عادي" — ما نكتبه أبدًا إلا لو admin أو owner
+  return { userId, email: user.email, displayName: user.displayName || "", role: user.role || "user" };
+}
+
+export default async function handler(req, res) {
+  const action = req.query.action || (req.body && req.body.action);
+
+  try {
+    // التحقق من حالة الدخول الحالية (يستخدمه الموقع باستمرار ليعرف هل العميل مسجّل)
+    if (req.method === "GET" && action === "me") {
+      const user = await getUserFromSession(req);
+      return res.status(200).json({ loggedIn: !!user, user });
+    }
+
+    // إجراء تشخيصي مؤقت — يوضح هل المتغير السري وصل للسيرفر وهل استُخدم من قبل،
+    // بدون كشف قيمته الحقيقية إطلاقًا. احذف هذا الجزء بعد ما تحل المشكلة.
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "الطريقة غير مسموحة" });
+    }
+
+    // إنشاء حساب جديد
+    if (action === "signup") {
+      const email = normalizeEmail(req.body.email);
+      const password = req.body.password || "";
+      const displayName = (req.body.displayName || "").toString().trim();
+
+      if (!email || !isValidEmail(email)) {
+        return res.status(400).json({ error: "بريد إلكتروني غير صحيح" });
+      }
+      if (password.length < 6) {
+        return res.status(400).json({ error: "كلمة المرور لازم تكون 6 أحرف على الأقل" });
+      }
+
+      const existing = await redis.hgetall(`user_by_email:${email}`);
+      if (existing && existing.userId) {
+        return res.status(409).json({ error: "هذا البريد مسجّل مسبقًا، جرّب تسجيل الدخول" });
+      }
+
+      const userId = crypto.randomUUID();
+      const salt = crypto.randomBytes(16).toString("hex");
+      const passwordHash = hashPassword(password, salt);
+
+      await Promise.all([
+        redis.hset(`user:${userId}`, { email, displayName, salt, passwordHash, createdAt: new Date().toISOString() }),
+        redis.hset(`user_by_email:${email}`, { userId })
+      ]);
+
+      await createSession(userId, res);
+      return res.status(200).json({ ok: true, user: { userId, email, displayName } });
+    }
+
+    // تسجيل الدخول
+    if (action === "login") {
+      const email = normalizeEmail(req.body.email);
+      const password = req.body.password || "";
+
+      const lookup = await redis.hgetall(`user_by_email:${email}`);
+      if (!lookup || !lookup.userId) {
+        return res.status(401).json({ error: "البريد أو كلمة المرور غير صحيحة" });
+      }
+
+      const user = await redis.hgetall(`user:${lookup.userId}`);
+      if (!user || !verifyPassword(password, user.salt, user.passwordHash)) {
+        return res.status(401).json({ error: "البريد أو كلمة المرور غير صحيحة" });
+      }
+
+      await createSession(lookup.userId, res);
+      return res.status(200).json({ ok: true, user: { userId: lookup.userId, email: user.email, displayName: user.displayName || "", role: user.role || "user" } });
+    }
+
+    // تسجيل الخروج
+    if (action === "logout") {
+      const token = getCookie(req, "mohal_session");
+      if (token) await redis.del(`session:${token}`);
+      clearSessionCookie(res);
+      return res.status(200).json({ ok: true });
+    }
+
+    // ترفيع حساب لدور admin أو owner — يشتغل بطريقتين:
+    // 1) مرة أولى فقط: عبر المفتاح السري (OWNER_BOOTSTRAP_SECRET) لتفعيل أول مالك.
+    // 2) لاحقًا: المالك نفسه (وهو مسجّل دخول) يقدر يرفّع أي حساب بدون حاجة للمفتاح.
+    if (action === "promote") {
+      const { targetEmail, newRole, secret } = req.body;
+      if (!["admin", "owner"].includes(newRole)) {
+        return res.status(400).json({ error: "دور غير صحيح" });
+      }
+
+      const bootstrapUsed = await redis.get("owner_bootstrap_used");
+      const usedSecret = !bootstrapUsed && secret && process.env.OWNER_BOOTSTRAP_SECRET && secret === process.env.OWNER_BOOTSTRAP_SECRET;
+      let authorized = usedSecret;
+
+      if (!authorized) {
+        const requester = await getUserFromSession(req);
+        authorized = requester && requester.role === "owner";
+      }
+
+      if (!authorized) {
+        return res.status(403).json({ error: "ما عندك صلاحية لهذا الإجراء" });
+      }
+
+      const email = normalizeEmail(targetEmail);
+      const lookup = await redis.hgetall(`user_by_email:${email}`);
+      if (!lookup || !lookup.userId) {
+        return res.status(404).json({ error: "ما فيه حساب بهذا الإيميل" });
+      }
+
+      await redis.hset(`user:${lookup.userId}`, { role: newRole });
+
+      // لو كان استخدام المفتاح السري، نقفله تلقائيًا بعد أول استخدام (أمان إضافي)
+      if (usedSecret) {
+        await redis.set("owner_bootstrap_used", "true");
+      }
+
+      return res.status(200).json({ ok: true });
+    }
+
+    return res.status(400).json({ error: "إجراء غير معروف" });
+  } catch (err) {
+    console.error("Auth error:", err);
+    return res.status(500).json({ error: "حدث خطأ بالسيرفر" });
+  }
+}
