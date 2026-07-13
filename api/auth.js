@@ -1,4 +1,4 @@
-// Version: 06
+// Version: 08
 // نظام الحسابات: تسجيل بإيميل + كلمة مرور، دخول، خروج، والتحقق من الجلسة الحالية.
 // بدون أي خدمة إيميل خارجية — يدخل مباشرة بعد التسجيل بدون تأكيد.
 // الجلسة تُدار عبر كوكي آمن (HttpOnly) يحمل رمز جلسة عشوائي، والرمز نفسه
@@ -54,6 +54,16 @@ function setSessionCookie(res, token) {
 
 function clearSessionCookie(res) {
   res.setHeader("Set-Cookie", `mohal_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`);
+}
+
+// عداد بسيط لعدد الحسابات (يومي + إجمالي دائم) — يفيد مستقبلاً بصفحة الإحصائيات
+// بدون ما نحتاج نعدّ كل المفاتيح بأثر رجعي لاحقًا
+async function bumpAccountsCounter() {
+  const dayKey = new Date().toISOString().slice(0, 10);
+  return Promise.all([
+    redis.incr("accounts:total"),
+    redis.incr(`accounts:day:${dayKey}`)
+  ]);
 }
 
 function getCookie(req, name) {
@@ -120,7 +130,8 @@ export default async function handler(req, res) {
 
       await Promise.all([
         redis.hset(`user:${userId}`, { email, displayName, salt, passwordHash, createdAt: new Date().toISOString() }),
-        redis.hset(`user_by_email:${email}`, { userId })
+        redis.hset(`user_by_email:${email}`, { userId }),
+        bumpAccountsCounter()
       ]);
 
       await createSession(userId, res);
@@ -190,6 +201,41 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ ok: true });
+    }
+
+    // حذف انتقائي: يمسح كل بيانات التجربة (إحصائيات، تقييمات، مفضلة) لكن
+    // يحافظ على الحسابات والجلسات تمامًا. يشتغل بس لحساب Owner، ويحتاج
+    // تأكيد صريح (confirm: true) عشان ما يصير بالغلط.
+    if (action === "purge-data") {
+      const requester = await getUserFromSession(req);
+      if (!requester || requester.role !== "owner") {
+        return res.status(403).json({ error: "ما عندك صلاحية لهذا الإجراء" });
+      }
+      if (req.body.confirm !== true) {
+        return res.status(400).json({ error: "لازم تأكيد صريح (confirm: true) لتنفيذ هذا الإجراء" });
+      }
+
+      // بادئات محمية — أي مفتاح يبدأ بواحد منها ما ينحذف أبدًا
+      const PROTECTED_PREFIXES = [
+        "user:", "user_by_email:", "session:", "user_favorites:", "favorite:",
+        "accounts:", "owner_bootstrap_used"
+      ];
+
+      const allKeys = await redis.keys("*");
+      const keysToDelete = allKeys.filter(
+        k => !PROTECTED_PREFIXES.some(prefix => k.startsWith(prefix))
+      );
+
+      if (keysToDelete.length > 0) {
+        // نحذف على دفعات عشان ما نتجاوز حدود الطلب الواحد
+        const batchSize = 100;
+        for (let i = 0; i < keysToDelete.length; i += batchSize) {
+          const batch = keysToDelete.slice(i, i + batchSize);
+          await redis.del(...batch);
+        }
+      }
+
+      return res.status(200).json({ ok: true, deletedCount: keysToDelete.length, keptCount: allKeys.length - keysToDelete.length });
     }
 
     return res.status(400).json({ error: "إجراء غير معروف" });
