@@ -1,4 +1,4 @@
-<!-- Version: 33 -->
+<!-- Version: 34 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -334,7 +334,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "20.10.13.05.03.33.08.01";
+const APP_VERSION = "20.10.14.05.03.34.08.01";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -351,7 +351,7 @@ const GRINDERS = {
 // تقدير تقريبي لكمية المشروب النهائي حسب عدد الأكواب (280 إلى 300 مل لكل كوب).
 // نستخدم <span dir="ltr"> عشان الأرقام ما تنعكس بصريًا داخل سياق الصفحة RTL.
 function CupAmount({ n }) {
-  return <span><span dir="ltr" style={{ unicodeBidi: "isolate" }}>{280 * n}-{300 * n}</span> مل</span>;
+  return <span><span dir="ltr" style={{ unicodeBidi: "isolate" }}>{300 * n}-{280 * n}</span> مل</span>;
 }
 
 // تصنيف قيمة المنزلق (0-100) لأربع مناطق نوعية
@@ -463,6 +463,7 @@ function CoffeeApp() {
   const [savedRoasteryId, setSavedRoasteryId] = useState(null);
   const [pendingRating, setPendingRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
+  const [productComments, setProductComments] = useState([]);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [knownRoasteries, setKnownRoasteries] = useState([]);
   const [showRoasteryDropdown, setShowRoasteryDropdown] = useState(false);
@@ -553,6 +554,7 @@ function CoffeeApp() {
     setComparison(null);
     setSaved(true);
     setSavedBeansId(beansId); // مسموح يقيّم ويعلّق لأنه فتحه من مفضلته الشخصية
+    fetchComments(beansId);
     setSavedRoasteryId(null);
     setIsFavorited(true);
     setPendingRating(0);
@@ -722,10 +724,34 @@ function CoffeeApp() {
       });
       const data = await res.json();
       setSaved(true);
-      if (data.beansId) setSavedBeansId(data.beansId);
+      if (data.beansId) { setSavedBeansId(data.beansId); fetchComments(data.beansId); }
       if (data.roasteryId) setSavedRoasteryId(data.roasteryId);
     } catch (e) {
       console.error("record failed", e);
+    }
+  };
+
+  const fetchComments = async (beansId) => {
+    if (!beansId) { setProductComments([]); return; }
+    try {
+      const res = await fetch(`/api/rate?beansId=${encodeURIComponent(beansId)}`);
+      const data = await res.json();
+      setProductComments(data.comments || []);
+    } catch (e) {
+      console.error("fetch comments failed", e);
+    }
+  };
+
+  const deleteComment = async (commentId) => {
+    try {
+      await fetch("/api/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-comment", beansId: savedBeansId, commentId })
+      });
+      setProductComments(productComments.filter(c => c.commentId !== commentId));
+    } catch (e) {
+      console.error("delete comment failed", e);
     }
   };
 
@@ -738,6 +764,7 @@ function CoffeeApp() {
         body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: pendingRating, comment: ratingComment })
       });
       setRatingSubmitted(true);
+      fetchComments(savedBeansId);
     } catch (e) {
       console.error("rating failed", e);
     }
@@ -1070,6 +1097,21 @@ function CoffeeApp() {
                 />
               )}
               {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
+
+              {productComments.length > 0 && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed var(--line)" }}>
+                  <div className="ca-rating-label">آراء الناس ({productComments.length})</div>
+                  {productComments.map((c) => (
+                    <div key={c.commentId} style={{ padding: "8px 0", borderBottom: "1px solid var(--parchment)" }}>
+                      <div style={{ fontSize: 12, color: "var(--gold)" }}>{"★".repeat(c.rating)}</div>
+                      <div style={{ fontSize: 13, color: "#4a3b2c" }}>{c.comment}</div>
+                      {user && (user.role === "owner" || (c.userId && c.userId === user.userId)) && (
+                        <button className="ca-fav-remove" onClick={() => deleteComment(c.commentId)}>حذف</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1213,9 +1255,11 @@ function CoffeeApp() {
                 return null; // تجاهل أي عنصر تالف بدل ما يكسر الصفحة كاملة
               }
               if (!r) return null;
+              const tempLabel = r.savedTempChoice === "cold" ? "بارد" : "حار";
+              const roasteryLabel = r.roastery_name && r.roastery_name.toLowerCase() !== "unknown" ? r.roastery_name : "محمصة غير محددة";
               return (
                 <div className="ca-fav-list-item" key={f.beansId}>
-                  <span style={{ cursor: "pointer" }} onClick={() => viewFavoriteRecipe(r, f.beansId)}>{r.coffee_type}</span>
+                  <span style={{ cursor: "pointer" }} onClick={() => viewFavoriteRecipe(r, f.beansId)}>{roasteryLabel} · {r.coffee_type} · {tempLabel}</span>
                   <button className="ca-fav-remove" onClick={() => removeFavoriteFromList(f.beansId)}>حذف</button>
                 </div>
               );
