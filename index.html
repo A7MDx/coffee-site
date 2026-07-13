@@ -1,4 +1,4 @@
-<!-- Version: 27 -->
+<!-- Version: 28 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -334,7 +334,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "19.10.11.05.03.27.06.01";
+const APP_VERSION = "19.10.11.05.03.28.06.01";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -544,6 +544,20 @@ function CoffeeApp() {
     }
   };
 
+  const viewFavoriteRecipe = (r) => {
+    setResult(r);
+    setTemp(r.savedTempChoice || "hot");
+    setSliders(r.sensory ? { ...r.sensory } : null);
+    setOriginalSensory(r.sensory ? { ...r.sensory } : null);
+    setComparison(null);
+    setSaved(true);
+    setSavedBeansId(null); // ما نربطه بعملية بحث جديدة، هذا مجرد عرض للمحفوظ
+    setSavedRoasteryId(null);
+    setIsFavorited(true);
+    setStatus("done");
+    setShowFavoritesModal(false);
+  };
+
   const removeFavoriteFromList = async (beansId) => {
     try {
       await fetch("/api/favorites", {
@@ -576,7 +590,7 @@ function CoffeeApp() {
         await fetch("/api/favorites", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "add", beansId: savedBeansId, recipe: result })
+          body: JSON.stringify({ action: "add", beansId: savedBeansId, recipe: { ...result, savedTempChoice: temp } })
         });
         setIsFavorited(true);
       }
@@ -1186,7 +1200,7 @@ function CoffeeApp() {
               if (!r) return null;
               return (
                 <div className="ca-fav-list-item" key={f.beansId}>
-                  <span>{r.coffee_type} · {r.roast_level}</span>
+                  <span style={{ cursor: "pointer" }} onClick={() => viewFavoriteRecipe(r)}>{r.coffee_type} · {r.roast_level}</span>
                   <button className="ca-fav-remove" onClick={() => removeFavoriteFromList(f.beansId)}>حذف</button>
                 </div>
               );
