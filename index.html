@@ -1,4 +1,4 @@
-<!-- Version: 25 -->
+<!-- Version: 26 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -240,9 +240,30 @@
   .ca-compare-note { font-size: 12.5px; color: #4a3b2c; line-height: 1.7; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 
   /* Account bar */
-  .ca-account-bar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; font-size: 12.5px; }
+  .ca-account-bar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; font-size: 12.5px; position: relative; }
   .ca-account-link { color: var(--ink); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; font-size: 12.5px; padding: 0; }
   .ca-account-email { color: #6b5a4a; }
+
+  .ca-account-menu-wrap { position: relative; }
+  .ca-account-menu {
+    position: absolute; top: 22px; left: 0; background: #fff; border: 1px solid var(--line);
+    border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 190px; z-index: 40; overflow: hidden;
+  }
+  .ca-account-menu-item {
+    display: block; width: 100%; text-align: right; padding: 10px 14px; font-size: 13px;
+    background: none; border: none; cursor: pointer; font-family: inherit; color: var(--ink);
+    border-bottom: 1px solid var(--parchment);
+  }
+  .ca-account-menu-item:last-child { border-bottom: none; }
+  .ca-account-menu-item:hover { background: var(--parchment); }
+  .ca-account-menu-item.soon { color: #a89a86; cursor: default; }
+  .ca-account-menu-item.soon:hover { background: none; }
+  .ca-account-menu-badge { font-size: 10px; color: #a89a86; margin-right: 4px; }
+
+  .ca-fav-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--parchment); font-size: 13px; }
+  .ca-fav-list-item:last-child { border-bottom: none; }
+  .ca-fav-remove { background: none; border: none; color: var(--error); cursor: pointer; font-size: 12px; font-family: inherit; }
+  .ca-fav-empty { font-size: 13px; color: #8a7862; text-align: center; padding: 20px 0; }
 
   /* Favorite button */
   .ca-fav-btn {
@@ -313,7 +334,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "19.10.11.05.03.25.06.01";
+const APP_VERSION = "19.10.11.05.03.26.06.01";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -465,6 +486,10 @@ function CoffeeApp() {
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showFavoritesModal, setShowFavoritesModal] = useState(false);
+  const [favoritesList, setFavoritesList] = useState([]);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
 
   React.useEffect(() => {
     fetch("/api/auth?action=me")
@@ -502,6 +527,35 @@ function CoffeeApp() {
   const logout = async () => {
     await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
     setUser(null);
+  };
+
+  const openFavorites = async () => {
+    setShowAccountMenu(false);
+    setShowFavoritesModal(true);
+    setFavoritesLoading(true);
+    try {
+      const res = await fetch("/api/favorites");
+      const data = await res.json();
+      setFavoritesList(data.favorites || []);
+    } catch (e) {
+      console.error("fetch favorites failed", e);
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  const removeFavoriteFromList = async (beansId) => {
+    try {
+      await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", beansId })
+      });
+      setFavoritesList(favoritesList.filter(f => f.beansId !== beansId));
+      if (beansId === savedBeansId) setIsFavorited(false);
+    } catch (e) {
+      console.error("remove favorite failed", e);
+    }
   };
 
   const toggleFavorite = async () => {
@@ -714,10 +768,21 @@ function CoffeeApp() {
       {authChecked && (
         <div className="ca-account-bar">
           {user ? (
-            <>
-              <span className="ca-account-email">{user.email}</span>
-              <button className="ca-account-link" onClick={logout}>خروج</button>
-            </>
+            <div className="ca-account-menu-wrap">
+              <button className="ca-account-link" onClick={() => setShowAccountMenu(!showAccountMenu)}>{user.email} ▾</button>
+              {showAccountMenu && (
+                <div className="ca-account-menu">
+                  <button className="ca-account-menu-item" onClick={openFavorites}>محاصيلي المفضلة</button>
+                  {(user.role === "owner" || user.role === "admin") && (
+                    <button className="ca-account-menu-item soon">الإحصائيات <span className="ca-account-menu-badge">(قريبًا)</span></button>
+                  )}
+                  {user.role === "owner" && (
+                    <button className="ca-account-menu-item soon">إدارة الحسابات <span className="ca-account-menu-badge">(قريبًا)</span></button>
+                  )}
+                  <button className="ca-account-menu-item" onClick={() => { setShowAccountMenu(false); logout(); }}>خروج</button>
+                </div>
+              )}
+            </div>
           ) : (
             <button className="ca-account-link" onClick={() => { setShowAuthModal(true); setAuthMode("login"); setAuthError(""); }}>تسجيل الدخول</button>
           )}
@@ -1099,6 +1164,30 @@ function CoffeeApp() {
       <div className="ca-disclaimer">
         {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
       </div>
+
+      {showFavoritesModal && (
+        <div className="ca-modal-overlay" onClick={() => setShowFavoritesModal(false)}>
+          <div className="ca-modal-box" style={{ position: "relative", maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <button className="ca-account-link ca-modal-close" onClick={() => setShowFavoritesModal(false)}>✕</button>
+            <div className="ca-modal-title">محاصيلي المفضلة</div>
+            <div className="ca-modal-sub">المحاصيل اللي حفظتها — احذفها متى ما حبيت.</div>
+
+            {favoritesLoading && <div className="ca-status">جارٍ التحميل...</div>}
+            {!favoritesLoading && favoritesList.length === 0 && (
+              <div className="ca-fav-empty">ما حفظت أي محصول بعد — اضغط ❤️ بأي نتيجة عشان تضيفها هنا.</div>
+            )}
+            {!favoritesLoading && favoritesList.map((f) => {
+              const r = JSON.parse(f.recipe);
+              return (
+                <div className="ca-fav-list-item" key={f.beansId}>
+                  <span>{r.coffee_type} · {r.roast_level}</span>
+                  <button className="ca-fav-remove" onClick={() => removeFavoriteFromList(f.beansId)}>حذف</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {showAuthModal && (
         <div className="ca-modal-overlay" onClick={() => setShowAuthModal(false)}>
