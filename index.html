@@ -1,4 +1,4 @@
-<!-- Version: 31 -->
+<!-- Version: 33 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -334,7 +334,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "20.10.11.05.03.31.08.01";
+const APP_VERSION = "20.10.13.05.03.33.08.01";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -462,6 +462,7 @@ function CoffeeApp() {
   const [savedBeansId, setSavedBeansId] = useState(null);
   const [savedRoasteryId, setSavedRoasteryId] = useState(null);
   const [pendingRating, setPendingRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [knownRoasteries, setKnownRoasteries] = useState([]);
   const [showRoasteryDropdown, setShowRoasteryDropdown] = useState(false);
@@ -544,16 +545,19 @@ function CoffeeApp() {
     }
   };
 
-  const viewFavoriteRecipe = (r) => {
+  const viewFavoriteRecipe = (r, beansId) => {
     setResult(r);
     setTemp(r.savedTempChoice || "hot");
     setSliders(r.sensory ? { ...r.sensory } : null);
     setOriginalSensory(r.sensory ? { ...r.sensory } : null);
     setComparison(null);
     setSaved(true);
-    setSavedBeansId(null); // ما نربطه بعملية بحث جديدة، هذا مجرد عرض للمحفوظ
+    setSavedBeansId(beansId); // مسموح يقيّم ويعلّق لأنه فتحه من مفضلته الشخصية
     setSavedRoasteryId(null);
     setIsFavorited(true);
+    setPendingRating(0);
+    setRatingComment("");
+    setRatingSubmitted(false);
     setStatus("done");
     setShowFavoritesModal(false);
   };
@@ -669,6 +673,7 @@ function CoffeeApp() {
       setIsFavorited(false);
       setRoasteryInput("");
       setPendingRating(0);
+      setRatingComment("");
       setRatingSubmitted(false);
       setComparison(null);
       setRefineError("");
@@ -730,7 +735,7 @@ function CoffeeApp() {
       await fetch("/api/rate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: pendingRating })
+        body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: pendingRating, comment: ratingComment })
       });
       setRatingSubmitted(true);
     } catch (e) {
@@ -1054,6 +1059,16 @@ function CoffeeApp() {
                 </div>
                 <button className="ca-btn small" onClick={submitRating} disabled={!pendingRating}>إرسال التقييم</button>
               </div>
+              {pendingRating > 0 && !ratingSubmitted && (
+                <textarea
+                  className="ca-text-input"
+                  style={{ width: "100%", marginTop: 10, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
+                  placeholder="أضف تعليق (اختياري)"
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  maxLength={500}
+                />
+              )}
               {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
             </div>
           </div>
@@ -1200,7 +1215,7 @@ function CoffeeApp() {
               if (!r) return null;
               return (
                 <div className="ca-fav-list-item" key={f.beansId}>
-                  <span style={{ cursor: "pointer" }} onClick={() => viewFavoriteRecipe(r)}>{r.coffee_type}</span>
+                  <span style={{ cursor: "pointer" }} onClick={() => viewFavoriteRecipe(r, f.beansId)}>{r.coffee_type}</span>
                   <button className="ca-fav-remove" onClick={() => removeFavoriteFromList(f.beansId)}>حذف</button>
                 </div>
               );
