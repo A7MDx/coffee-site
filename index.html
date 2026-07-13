@@ -1,5 +1,5 @@
-<!-- Version: 23 -->
-<!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index] -->
+<!-- Version: 24 -->
+<!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -239,6 +239,32 @@
   .ca-compare-table td.changed { color: var(--gold); font-weight: 700; }
   .ca-compare-note { font-size: 12.5px; color: #4a3b2c; line-height: 1.7; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 
+  /* Account bar */
+  .ca-account-bar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; font-size: 12.5px; }
+  .ca-account-link { color: var(--ink); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; font-size: 12.5px; padding: 0; }
+  .ca-account-email { color: #6b5a4a; }
+
+  /* Favorite button */
+  .ca-fav-btn {
+    position: absolute; top: 16px; left: 16px; background: none; border: none; font-size: 22px;
+    cursor: pointer; line-height: 1; padding: 0;
+  }
+
+  /* Auth modal */
+  .ca-modal-overlay {
+    position: fixed; inset: 0; background: rgba(43,29,20,0.5); display: flex;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .ca-modal-box { background: #fff; border-radius: 6px; padding: 24px; max-width: 360px; width: 100%; }
+  .ca-modal-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .ca-modal-sub { font-size: 12.5px; color: #8a7862; margin-bottom: 18px; }
+  .ca-modal-field { margin-bottom: 12px; }
+  .ca-modal-field label { display: block; font-size: 12.5px; margin-bottom: 6px; color: #4a3b2c; }
+  .ca-modal-error { font-size: 12.5px; color: var(--error); margin-bottom: 12px; }
+  .ca-modal-switch { text-align: center; font-size: 12.5px; margin-top: 14px; color: #6b5a4a; }
+  .ca-modal-switch button { color: var(--gold); background: none; border: none; font-family: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; padding: 0; }
+  .ca-modal-close { position: absolute; top: 12px; left: 12px; }
+
   /* Loading — mug */
   .ca-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 0; }
   .ca-loading-text { font-size: 13px; color: #6b5a4a; }
@@ -286,8 +312,8 @@
 <script type="text/babel">
 const { useState, useRef } = React;
 
-// رقم إصدار الملفات الستة بالترتيب: analyze.record.rate.package.تعليمات.index
-const APP_VERSION = "19.10.11.05.03.23";
+// رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
+const APP_VERSION = "19.10.11.05.03.24.03.01";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -428,6 +454,83 @@ function CoffeeApp() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // الحساب والمفضلة
+  const [user, setUser] = useState(null); // null = ما سجّل دخول
+  const [authChecked, setAuthChecked] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // login | signup
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+
+  React.useEffect(() => {
+    fetch("/api/auth?action=me")
+      .then(r => r.json())
+      .then(d => { setUser(d.loggedIn ? d.user : null); setAuthChecked(true); })
+      .catch(() => setAuthChecked(true));
+  }, []);
+
+  const submitAuth = async () => {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: authMode,
+          email: authEmail,
+          password: authPassword,
+          displayName: authName
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "حدث خطأ");
+      setUser(data.user);
+      setShowAuthModal(false);
+      setAuthEmail(""); setAuthPassword(""); setAuthName("");
+    } catch (e) {
+      setAuthError(e.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
+    setUser(null);
+  };
+
+  const toggleFavorite = async () => {
+    if (!user) {
+      setShowAuthModal(true);
+      setAuthMode("login");
+      return;
+    }
+    try {
+      if (isFavorited) {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "remove", beansId: savedBeansId })
+        });
+        setIsFavorited(false);
+      } else {
+        await fetch("/api/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add", beansId: savedBeansId, recipe: result })
+        });
+        setIsFavorited(true);
+      }
+    } catch (e) {
+      console.error("favorite toggle failed", e);
+    }
+  };
+
   const grinderInfoLabel =
     grinderMode === "list" && grinderBrand && grinderModel ? `${grinderBrand} ${grinderModel}`
     : grinderMode === "custom" && grinderCustom.trim() ? grinderCustom.trim()
@@ -495,6 +598,7 @@ function CoffeeApp() {
       setSaved(false);
       setSavedBeansId(null);
       setSavedRoasteryId(null);
+      setIsFavorited(false);
       setRoasteryInput("");
       setPendingRating(0);
       setRatingSubmitted(false);
@@ -607,6 +711,19 @@ function CoffeeApp() {
 
   return (
     <div className="ca-wrap">
+      {authChecked && (
+        <div className="ca-account-bar">
+          {user ? (
+            <>
+              <span className="ca-account-email">{user.email}</span>
+              <button className="ca-account-link" onClick={logout}>خروج</button>
+            </>
+          ) : (
+            <button className="ca-account-link" onClick={() => { setShowAuthModal(true); setAuthMode("login"); setAuthError(""); }}>تسجيل الدخول</button>
+          )}
+        </div>
+      )}
+
       <div className="ca-eyebrow">الإصدار {APP_VERSION}</div>
       <div className="ca-title-row">
         <h1 className="ca-title">مُــهـل</h1>
@@ -716,7 +833,12 @@ function CoffeeApp() {
       {status === "done" && result && (
         <>
           <hr className="ca-divider" />
-          <div className="ca-ticket">
+          <div className="ca-ticket" style={{ position: "relative" }}>
+            {savedBeansId && (
+              <button className="ca-fav-btn" onClick={toggleFavorite} title="أضف للمفضلة">
+                {isFavorited ? "❤️" : "🤍"}
+              </button>
+            )}
             <div className="ca-ticket-label">النوع والتحميص</div>
             <div className="ca-ticket-name">{result.coffee_type} · {result.roast_level}</div>
 
@@ -977,6 +1099,45 @@ function CoffeeApp() {
       <div className="ca-disclaimer">
         {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
       </div>
+
+      {showAuthModal && (
+        <div className="ca-modal-overlay" onClick={() => setShowAuthModal(false)}>
+          <div className="ca-modal-box" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+            <button className="ca-account-link ca-modal-close" onClick={() => setShowAuthModal(false)}>✕</button>
+            <div className="ca-modal-title">{authMode === "login" ? "تسجيل الدخول" : "إنشاء حساب"}</div>
+            <div className="ca-modal-sub">{authMode === "login" ? "سجّل دخولك للوصول لمحاصيلك المحفوظة" : "أنشئ حساب لتحفظ المحاصيل اللي تعجبك"}</div>
+
+            {authMode === "signup" && (
+              <div className="ca-modal-field">
+                <label>اسمك (اختياري)</label>
+                <input className="ca-text-input" style={{ width: "100%" }} type="text" value={authName} onChange={(e) => setAuthName(e.target.value)} />
+              </div>
+            )}
+            <div className="ca-modal-field">
+              <label>البريد الإلكتروني</label>
+              <input className="ca-text-input" style={{ width: "100%" }} type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="example@email.com" />
+            </div>
+            <div className="ca-modal-field">
+              <label>كلمة المرور</label>
+              <input className="ca-text-input" style={{ width: "100%" }} type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="6 أحرف على الأقل" />
+            </div>
+
+            {authError && <div className="ca-modal-error">{authError}</div>}
+
+            <button className="ca-btn" style={{ width: "100%" }} onClick={submitAuth} disabled={authLoading}>
+              {authLoading ? "جارٍ التحقق..." : (authMode === "login" ? "دخول" : "إنشاء الحساب")}
+            </button>
+
+            <div className="ca-modal-switch">
+              {authMode === "login" ? (
+                <>ما عندك حساب؟ <button onClick={() => { setAuthMode("signup"); setAuthError(""); }}>أنشئ واحد</button></>
+              ) : (
+                <>عندك حساب؟ <button onClick={() => { setAuthMode("login"); setAuthError(""); }}>سجّل دخول</button></>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
