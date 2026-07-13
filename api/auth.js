@@ -1,4 +1,4 @@
-// Version: 05
+// Version: 06
 // نظام الحسابات: تسجيل بإيميل + كلمة مرور، دخول، خروج، والتحقق من الجلسة الحالية.
 // بدون أي خدمة إيميل خارجية — يدخل مباشرة بعد التسجيل بدون تأكيد.
 // الجلسة تُدار عبر كوكي آمن (HttpOnly) يحمل رمز جلسة عشوائي، والرمز نفسه
@@ -92,17 +92,6 @@ export default async function handler(req, res) {
 
     // إجراء تشخيصي مؤقت — يوضح هل المتغير السري وصل للسيرفر وهل استُخدم من قبل،
     // بدون كشف قيمته الحقيقية إطلاقًا. احذف هذا الجزء بعد ما تحل المشكلة.
-    if (req.method === "GET" && action === "debug-secret") {
-      const bootstrapUsed = await redis.get("owner_bootstrap_used");
-      const candidate = req.query.candidate || null;
-      return res.status(200).json({
-        secretIsSet: !!process.env.OWNER_BOOTSTRAP_SECRET,
-        secretLength: process.env.OWNER_BOOTSTRAP_SECRET ? process.env.OWNER_BOOTSTRAP_SECRET.length : 0,
-        bootstrapAlreadyUsed: !!bootstrapUsed,
-        candidateMatches: candidate ? candidate === process.env.OWNER_BOOTSTRAP_SECRET : null
-      });
-    }
-
     if (req.method !== "POST") {
       return res.status(405).json({ error: "الطريقة غير مسموحة" });
     }
