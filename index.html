@@ -1,4 +1,4 @@
-<!-- Version: 37 -->
+<!-- Version: 38 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -340,7 +340,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "21.10.15.05.03.37.08.02";
+const APP_VERSION = "21.10.15.05.03.38.08.02";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -1337,9 +1337,6 @@ function CoffeeApp() {
 
       <div className="ca-disclaimer">
         {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
-      </div>
-      <div style={{ textAlign: "center", marginTop: 10 }}>
-        <a href="/stats.html" style={{ fontSize: 11, color: "#8a7862" }}>الإحصائيات العامة</a>
       </div>
 
       {showHistoryModal && (
