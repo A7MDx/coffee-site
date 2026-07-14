@@ -1,4 +1,4 @@
-<!-- Version: 01 -->
+<!-- Version: 02 -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -144,6 +144,20 @@ function StatsApp() {
             <div className="st-card">
               <div className="st-big-number">{priv.commentsTotal}</div>
               <div className="st-big-label">إجمالي التعليقات المكتوبة</div>
+            </div>
+          </div>
+
+          <div className="st-section-title">توزيع عدد الأكواب</div>
+          <div className="st-grid">
+            <div className="st-card">
+              <div className="st-card-title">كم كوب يحضّر عملاؤك؟</div>
+              {(!priv.cupCountSplit || priv.cupCountSplit.length === 0) && <div className="st-empty">ما فيه بيانات كافية بعد</div>}
+              {priv.cupCountSplit && priv.cupCountSplit.map((item, i) => (
+                <div className="st-list-item" key={i}>
+                  <span>{"☕️".repeat(Number(item.key))} ({item.key})</span>
+                  <span className="st-list-count">{item.count}</span>
+                </div>
+              ))}
             </div>
           </div>
 
