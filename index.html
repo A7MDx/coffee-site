@@ -1,4 +1,4 @@
-<!-- Version: 38 -->
+<!-- Version: 39 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -340,7 +340,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "21.10.15.05.03.38.08.02";
+const APP_VERSION = "22.10.15.05.03.39.08.02";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -457,8 +457,8 @@ function CoffeeApp() {
   const [grinderModel, setGrinderModel] = useState("");
   const [grinderCustom, setGrinderCustom] = useState("");
   const [grinderWarning, setGrinderWarning] = useState(false);
-  const [stream, setStream] = useState(null);
   const [captured, setCaptured] = useState(null);
+  const [identifyResult, setIdentifyResult] = useState(null);
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
   const [errMsg, setErrMsg] = useState("");
@@ -484,8 +484,7 @@ function CoffeeApp() {
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState("");
   const [comparison, setComparison] = useState(null); // { original, refined }
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const photoInputRef = useRef(null);
 
   // الحساب والمفضلة
   const [user, setUser] = useState(null); // null = ما سجّل دخول
@@ -641,53 +640,64 @@ function CoffeeApp() {
     : grinderMode === "custom" && grinderCustom.trim() ? grinderCustom.trim()
     : "";
 
-  const startCamera = async () => {
+  const triggerCamera = () => {
+    if (!temp) { setTempWarning(true); return; }
+    setTempWarning(false);
+    if (photoInputRef.current) photoInputRef.current.click();
+  };
+
+  const handlePhotoFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCaptured(reader.result);
+      identifyPhoto(reader.result);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ""; // يسمح باختيار نفس الصورة مرة ثانية لو احتاج
+  };
+
+  const identifyPhoto = async (dataUrl) => {
+    setStatus("identifying");
+    setErrMsg("");
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      setStream(s);
-      setStatus("camera");
-      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = s; }, 50);
+      const base64Data = dataUrl.split(",")[1];
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "identify", imageBase64: base64Data })
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || "فشل التعرّف على الصورة");
+      }
+      const parsed = await response.json();
+      setIdentifyResult(parsed);
+      setCupCount(1);
+      setStatus("identified");
     } catch (e) {
-      setErrMsg("تعذر الوصول للكاميرا. تأكد من إعطاء الإذن للمتصفح.");
+      setErrMsg(e.message || "حدث خطأ أثناء التعرّف على الصورة. جرّب مرة أخرى.");
       setStatus("error");
     }
   };
 
-  const stopCamera = () => { if (stream) stream.getTracks().forEach(t => t.stop()); setStream(null); };
-
-  const capture = () => {
-    const video = videoRef.current, canvas = canvasRef.current;
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    setCaptured(canvas.toDataURL("image/jpeg", 0.85));
-    stopCamera();
-    setStatus("captured");
-  };
-
-  const retake = () => { setCaptured(null); setResult(null); startCamera(); };
-
-  const analyze = async () => {
-    if (!temp) {
-      setTempWarning(true);
-      return;
-    }
-    setTempWarning(false);
-
+  const computeRecipe = async () => {
     if (grinderMode === "list" && (!grinderBrand || !grinderModel)) {
       setGrinderWarning(true);
       return;
     }
     setGrinderWarning(false);
 
-    setStatus("loading");
+    setStatus("computing");
     setOpenWhy(null);
     try {
-      const base64Data = captured.split(",")[1];
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageBase64: base64Data,
+          mode: "recipe",
+          beanProfile: identifyResult,
           tempChoice: temp,
           grinderInfo: grinderInfoLabel || null,
           cupCount
@@ -696,9 +706,10 @@ function CoffeeApp() {
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
-        throw new Error(errBody.error || "فشل الاتصال");
+        throw new Error(errBody.error || "فشل بناء الوصفة");
       }
-      const parsed = await response.json();
+      const recipeData = await response.json();
+      const parsed = { ...identifyResult, ...recipeData };
       setResult(parsed);
       setSaved(false);
       setSavedBeansId(null);
@@ -730,7 +741,7 @@ function CoffeeApp() {
           .catch(() => {});
       }
     } catch (e) {
-      setErrMsg(e.message || "حدث خطأ أثناء التحليل. جرّب مرة أخرى.");
+      setErrMsg(e.message || "حدث خطأ أثناء بناء الوصفة. جرّب مرة أخرى.");
       setStatus("error");
     }
   };
@@ -915,57 +926,6 @@ function CoffeeApp() {
         <MugLoader className="mug-loader-brand" label="مُــهـل" />
       </div>
 
-      <div className="ca-cup-select">
-        <div className="ca-cup-label">كم كوب تبي تحضّر؟</div>
-        <div className="ca-cup-options">
-          {[1, 2, 3].map(n => (
-            <button
-              key={n}
-              className={`ca-cup-btn ${cupCount === n ? "active" : ""}`}
-              onClick={() => setCupCount(n)}
-            >
-              <div className="ca-cup-emoji">{"☕️".repeat(n)}</div>
-              <div className="ca-cup-amount"><CupAmount n={n} /></div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="ca-grinder-select">
-        <div className="ca-grinder-hint">لطعم أفضل، حدد نوع طاحونتك (اختياري)</div>
-        <div className="ca-grinder-modes">
-          <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => { setGrinderMode("list"); setGrinderWarning(false); }}>اختر من القائمة</button>
-          <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => { setGrinderMode("custom"); setGrinderWarning(false); }}>اكتب اسمها</button>
-          <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => { setGrinderMode("none"); setGrinderWarning(false); }}>بدون تحديد</button>
-        </div>
-
-        {grinderMode === "list" && (
-          <div className="ca-grinder-fields">
-            <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); setGrinderWarning(false); }}>
-              <option value="">الشركة المصنعة</option>
-              {Object.keys(GRINDERS).map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-            <select className="ca-select" value={grinderModel} onChange={(e) => { setGrinderModel(e.target.value); setGrinderWarning(false); }} disabled={!grinderBrand}>
-              <option value="">الموديل</option>
-              {(GRINDERS[grinderBrand] || []).map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        )}
-
-        {grinderMode === "custom" && (
-          <input
-            className="ca-text-input"
-            type="text"
-            placeholder="اكتب اسم الشركة، الموديل، وعدد درجات الطحن (مثال: XYZ - موديل ABC - من 1 إلى 40)"
-            value={grinderCustom}
-            onChange={(e) => setGrinderCustom(e.target.value)}
-            style={{ width: "100%" }}
-          />
-        )}
-
-        {grinderWarning && <div className="ca-grinder-warning">اختر طاحونتك من القائمة، أو اختر "بدون تحديد"</div>}
-      </div>
-
       <div className="ca-temp-select">
         <div className="ca-temp-label">طريقة التحضير</div>
         <div className="ca-temp-options">
@@ -976,41 +936,99 @@ function CoffeeApp() {
             <div className="ca-temp-card-title" style={{color: temp === "cold" ? "#2E7D8C" : "#2B1D14"}}>بارد</div>
           </div>
         </div>
-        {tempWarning && <div className="ca-temp-warning">اختار نوع التحضير</div>}
+        {tempWarning && <div className="ca-temp-warning">اختار نوع التحضير أول</div>}
       </div>
 
-      <div className={`ca-stage ${!stream && !captured ? "empty" : ""}`}>
-        {stream && <video ref={videoRef} autoPlay playsInline muted />}
+      <div className={`ca-stage ${!captured ? "empty" : ""}`}>
         {captured && <img src={captured} alt="القهوة الملتقطة" />}
       </div>
-      <canvas ref={canvasRef} className="hidden" />
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handlePhotoFile}
+      />
 
       {status === "idle" && (
-        <div className="ca-btnrow"><button className="ca-btn" onClick={startCamera}>تشغيل الكاميرا</button></div>
-      )}
-      {status === "camera" && (
         <div className="ca-btnrow">
-          <button className="ca-btn" onClick={capture}>التقاط الصورة</button>
-          <button className="ca-btn secondary" onClick={stopCamera}>إلغاء</button>
+          <button className="ca-btn" onClick={triggerCamera}>📷 صوّر كيس القهوة</button>
         </div>
       )}
-      {status === "captured" && (
-        <div className="ca-btnrow">
-          <button className="ca-btn" onClick={analyze}>تحليل الصورة</button>
-          <button className="ca-btn secondary" onClick={retake}>إعادة التصوير</button>
-        </div>
-      )}
-      {status === "loading" && (
+      {(status === "identifying" || status === "computing") && (
         <div className="ca-loading">
           <MugLoader />
-          <div className="ca-loading-text">جارٍ تحليل الصورة وتجهيز الشرح...</div>
+          <div className="ca-loading-text">{status === "identifying" ? "جارٍ التعرّف على المحصول..." : "جارٍ بناء الوصفة..."}</div>
         </div>
       )}
       {status === "error" && (
         <>
           <div className="ca-status error">{errMsg}</div>
           <div className="ca-btnrow">
-            <button className="ca-btn" onClick={() => { setStatus("idle"); setCaptured(null); }}>حاول من جديد</button>
+            <button className="ca-btn" onClick={() => { setStatus("idle"); setCaptured(null); setIdentifyResult(null); }}>حاول من جديد</button>
+          </div>
+        </>
+      )}
+
+      {status === "identified" && identifyResult && (
+        <>
+          <div className="ca-ticket" style={{ marginBottom: 16 }}>
+            <div className="ca-ticket-label">تعرّفنا على محصولك</div>
+            <div className="ca-ticket-name">{identifyResult.coffee_type}</div>
+            <div style={{ fontSize: 12.5, color: "#6b5a4a" }}>{identifyResult.confidence_note}</div>
+          </div>
+
+          <div className="ca-cup-select">
+            <div className="ca-cup-label">كم كوب تبي تحضّر؟</div>
+            <div className="ca-cup-options">
+              {[1, 2, 3].map(n => (
+                <button key={n} className={`ca-cup-btn ${cupCount === n ? "active" : ""}`} onClick={() => setCupCount(n)}>
+                  <div className="ca-cup-emoji">{"☕️".repeat(n)}</div>
+                  <div className="ca-cup-amount"><CupAmount n={n} /></div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="ca-grinder-select">
+            <div className="ca-grinder-hint">لطعم أفضل، حدد نوع طاحونتك (اختياري)</div>
+            <div className="ca-grinder-modes">
+              <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => { setGrinderMode("list"); setGrinderWarning(false); }}>اختر من القائمة</button>
+              <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => { setGrinderMode("custom"); setGrinderWarning(false); }}>اكتب اسمها</button>
+              <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => { setGrinderMode("none"); setGrinderWarning(false); }}>بدون تحديد</button>
+            </div>
+
+            {grinderMode === "list" && (
+              <div className="ca-grinder-fields">
+                <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); setGrinderWarning(false); }}>
+                  <option value="">الشركة المصنعة</option>
+                  {Object.keys(GRINDERS).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select className="ca-select" value={grinderModel} onChange={(e) => { setGrinderModel(e.target.value); setGrinderWarning(false); }} disabled={!grinderBrand}>
+                  <option value="">الموديل</option>
+                  {(GRINDERS[grinderBrand] || []).map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            )}
+
+            {grinderMode === "custom" && (
+              <input
+                className="ca-text-input"
+                type="text"
+                placeholder="اكتب اسم الشركة، الموديل، وعدد درجات الطحن (مثال: XYZ - موديل ABC - من 1 إلى 40)"
+                value={grinderCustom}
+                onChange={(e) => setGrinderCustom(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            )}
+
+            {grinderWarning && <div className="ca-grinder-warning">اختر طاحونتك من القائمة، أو اختر "بدون تحديد"</div>}
+          </div>
+
+          <div className="ca-btnrow">
+            <button className="ca-btn" onClick={computeRecipe}>✨ احسب الوصفة</button>
+            <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setIdentifyResult(null); }}>صوّر من جديد</button>
           </div>
         </>
       )}
@@ -1330,7 +1348,7 @@ function CoffeeApp() {
           )}
 
           <div className="ca-btnrow" style={{ marginTop: 16 }}>
-            <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setResult(null); setOpenWhy(null); }}>تجربة صورة أخرى</button>
+            <button className="ca-btn secondary" onClick={() => { setStatus("idle"); setCaptured(null); setResult(null); setIdentifyResult(null); setOpenWhy(null); }}>تجربة صورة أخرى</button>
           </div>
         </>
       )}
