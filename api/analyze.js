@@ -1,4 +1,4 @@
-// Version: 20  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
+// Version: 21  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
 // هذا الملف يشتغل على السيرفر فقط (Vercel) — المستخدم أبدًا ما يشوف محتواه.
 // وضعين:
 //  1) mode=initial (افتراضي): يستقبل الصورة، يحلل الكيس، يرجع الوصفة + الملف الحسي.
@@ -177,6 +177,54 @@ ${POUR_LABEL_RULE}`
   }
 }
 
+async function handleFreshness(req, res, ip) {
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ error: "عدد كبير من الطلبات. حاول بعد قليل." });
+  }
+
+  const { beanProfile, roastDate } = req.body || {};
+  if (!beanProfile || !roastDate) {
+    return res.status(400).json({ error: "بيانات ناقصة" });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const daysSinceRoast = Math.floor((new Date(today) - new Date(roastDate)) / (1000 * 60 * 60 * 24));
+
+  if (daysSinceRoast < 0) {
+    return res.status(400).json({ error: "تاريخ التحميص لازم يكون بالماضي" });
+  }
+
+  try {
+    const parsed = await callClaude([
+      {
+        type: "text",
+        text: `أنت خبير قهوة متخصص. هذي بيانات محصول حقيقي:
+${JSON.stringify(beanProfile)}
+
+تاريخ التحميص: ${roastDate}
+تاريخ اليوم: ${today}
+عدد الأيام منذ التحميص: ${daysSinceRoast} يوم
+
+بناءً على درجة التحميص وطريقة المعالجة وبلد المنشأ لهذا البن تحديدًا (مو قاعدة عامة ثابتة لكل قهوة)، استنتج:
+1. النافذة المثلى المتوقعة لهذا البن بالذات (بعد كم يوم من التحميص تبدأ، ومتى تقريبًا تنتهي) — واشرح ليش هذي المدة بالذات لهذا البن (مثلاً: تحميص فاتح يحتاج تهوية أطول قبل ما يوصل ذروته، معالجة طبيعية تتصرف بشكل مختلف عن المغسولة، إلخ).
+2. وضع البن الحالي بالنسبة لهذي النافذة: "لسه مبكر"، "بالنافذة المثلى"، أو "بدأ يفقد نكهته".
+
+أجب بصيغة JSON فقط بدون أي نص إضافي:
+{
+  "window_start_days": رقم الأيام لبداية النافذة المثلى,
+  "window_end_days": رقم الأيام لنهاية النافذة المثلى,
+  "current_status": "لسه مبكر" أو "بالنافذة المثلى" أو "بدأ يفقد نكهته",
+  "why": "شرح تعليمي (3-4 جمل) ليش هذي النافذة بالذات مبني على خصائص هذا البن تحديدًا، مو قاعدة عامة"
+}`
+      }
+    ], 800);
+
+    return res.status(200).json({ ...parsed, daysSinceRoast });
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "الطريقة غير مسموحة" });
@@ -185,5 +233,6 @@ export default async function handler(req, res) {
   const mode = (req.body && req.body.mode) || "initial";
 
   if (mode === "refine") return handleRefine(req, res, ip);
+  if (mode === "freshness") return handleFreshness(req, res, ip);
   return handleInitial(req, res, ip);
 }
