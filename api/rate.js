@@ -1,13 +1,14 @@
-// Version: 14
+// Version: 15
 // هذا الملف يسجّل تقييم العميل (1-5 نجوم) لمحصول معيّن، ويربطه أيضًا بالمحمصة.
 // نخزن مجموع التقييمات وعددها بشكل منفصل (يومي + إجمالي دائم)، عشان نقدر نحسب
 // لاحقًا "متوسط التقييم" لأي فترة نبيها (هذا الشهر، آخر 30 يوم، أو كل الوقت).
 //
 // التعليق النصي اختياري دائمًا. كل تعليق له معرّف فريد ومرتبط بهوية كاتبه
 // (لو كان مسجّل دخول) — عشان صاحب التعليق بس أو المالك يقدر يحذفه لاحقًا.
-// ملاحظة تصميمية مهمة: زر التقييم/التعليق لازم يظهر بس لمن صوّر الكيس بنفسه
-// أو فتح المحصول من مفضلته — مو لمن يتصفح "الأكثر بحثًا" بصفحة مستقبلية،
-// وهذا محقق تلقائيًا حاليًا لأن مافيه صفحة تصفح عامة بعد.
+//
+// قائمة عامة (global_comments_feed): بدل ما نفتش كل مفاتيح beans_comments:*
+// كل مرة (بطيء ومكلف)، نحتفظ بقائمة مختصرة تتحدّث تلقائيًا بكل تعليق جديد،
+// بحد أقصى 200 عنصر — تُستخدم بصفحة الإحصائيات الخاصة بالمالك بس.
 
 import { Redis } from "@upstash/redis";
 import crypto from "crypto";
@@ -16,6 +17,8 @@ const redis = new Redis({
   url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
 });
+
+const GLOBAL_FEED_MAX = 200;
 
 // يزيد مجموع النجوم وعدد المقيّمين لبُعد معيّن (محصول أو محمصة)، يومي + إجمالي دائم
 async function bumpRating(dimension, key, stars) {
@@ -45,6 +48,23 @@ async function getRequester(req) {
 }
 
 export default async function handler(req, res) {
+  // قائمة عامة بآخر التعليقات على كل المحاصيل — للمالك فقط
+  if (req.method === "GET" && req.query.type === "global-feed") {
+    const requester = await getRequester(req);
+    if (!requester || requester.role !== "owner") {
+      return res.status(403).json({ error: "ما عندك صلاحية لهذا الإجراء" });
+    }
+    try {
+      const items = await redis.lrange("global_comments_feed", 0, GLOBAL_FEED_MAX - 1);
+      const feed = items.map(i => (typeof i === "string" ? JSON.parse(i) : i));
+      const totalComments = await redis.get("comments:total");
+      return res.status(200).json({ feed, totalComments: totalComments || 0 });
+    } catch (err) {
+      console.error("Global feed error:", err);
+      return res.status(200).json({ feed: [], totalComments: 0 });
+    }
+  }
+
   // جلب كل تعليقات محصول معيّن — يستخدمها أي زائر يشوف نفس المحصول
   if (req.method === "GET") {
     const { beansId } = req.query;
@@ -113,14 +133,25 @@ export default async function handler(req, res) {
     if (commentText) {
       const requester = await getRequester(req); // قد يكون null لو ما سجّل دخول — التعليق يبقى مسموح، بس بدون إمكانية حذف ذاتي لاحقًا
       const commentId = crypto.randomUUID();
-      tasks.push(redis.hset(`beans_comments:${beansId}`, {
-        [commentId]: JSON.stringify({
-          rating: stars,
-          comment: commentText,
-          userId: requester ? requester.userId : null,
-          createdAt: new Date().toISOString()
-        })
-      }));
+      const meta = await redis.hgetall(`beans_meta:${beansId}`); // نجيب اسم المحصول والمحمصة للعرض بالقائمة العامة
+      const commentRecord = {
+        rating: stars,
+        comment: commentText,
+        userId: requester ? requester.userId : null,
+        createdAt: new Date().toISOString()
+      };
+      tasks.push(redis.hset(`beans_comments:${beansId}`, { [commentId]: JSON.stringify(commentRecord) }));
+      tasks.push(redis.incr("comments:total"));
+      tasks.push(
+        redis.lpush("global_comments_feed", JSON.stringify({
+          commentId,
+          beansId,
+          coffeeType: meta ? meta.coffeeType : "",
+          roasteryName: meta ? meta.roasteryName : "",
+          ...commentRecord
+        }))
+      );
+      tasks.push(redis.ltrim("global_comments_feed", 0, GLOBAL_FEED_MAX - 1));
     }
 
     await Promise.all(tasks);
