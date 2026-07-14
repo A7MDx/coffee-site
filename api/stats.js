@@ -1,4 +1,4 @@
-// Version: 01
+// Version: 02
 // يجمع كل بيانات صفحة الإحصائيات بطلب واحد بدل عدة طلبات متفرقة.
 // القسم العام يرجع لأي زائر. القسم الخاص (accounts, total searches, آخر
 // التعليقات) يرجع بس لو الطالب owner أو admin.
@@ -111,10 +111,11 @@ export default async function handler(req, res) {
 
     let privateStats = null;
     if (isPrivileged) {
-      const [accountsTotal, beansMetaKeysCount, commentsTotal] = await Promise.all([
+      const [accountsTotal, beansMetaKeysCount, commentsTotal, cupCountAll] = await Promise.all([
         redis.get("accounts:total"),
         Promise.resolve(Object.keys(beansAll || {}).length), // عدد المحاصيل الفريدة
-        redis.get("comments:total")
+        redis.get("comments:total"),
+        redis.hgetall("cupcount:all")
       ]);
 
       const totalSearches = Object.values(beansAll || {}).reduce((sum, v) => sum + Number(v), 0);
@@ -123,7 +124,8 @@ export default async function handler(req, res) {
         accountsTotal: accountsTotal || 0,
         totalSearches,
         uniqueBeansCount: beansMetaKeysCount,
-        commentsTotal: commentsTotal || 0
+        commentsTotal: commentsTotal || 0,
+        cupCountSplit: topN(cupCountAll, 3)
       };
     }
 
