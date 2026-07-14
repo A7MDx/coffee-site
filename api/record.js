@@ -1,4 +1,4 @@
-// Version: 10
+// Version: 11
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -87,8 +87,25 @@ export default async function handler(req, res) {
   }
 
   try {
+    // تصحيح إحصائيات حار/بارد وعدد الأكواب لما العميل يحدّث الوصفة (مو بحث جديد،
+    // بس تعديل على نفس البحث) — ننقل العداد من القيمة القديمة للجديدة بدل ما نضيف
+    if (req.body && req.body.action === "update-settings") {
+      const { oldTemp, newTemp, oldCupCount, newCupCount } = req.body;
+      const tasks = [];
+      if (oldTemp && newTemp && oldTemp !== newTemp) {
+        tasks.push(bumpCounter("temp", oldTemp === "cold" ? "cold" : "hot", -1));
+        tasks.push(bumpCounter("temp", newTemp === "cold" ? "cold" : "hot", 1));
+      }
+      if (oldCupCount && newCupCount && oldCupCount !== newCupCount) {
+        tasks.push(bumpCounter("cupcount", String(oldCupCount), -1));
+        tasks.push(bumpCounter("cupcount", String(newCupCount), 1));
+      }
+      await Promise.all(tasks);
+      return res.status(200).json({ ok: true });
+    }
+
     const {
-      coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice,
+      coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice, cupCount,
       correction, previousBeansId, previousRoasteryId,
       grinderMode, grinderBrand, grinderModel, grinderCustom
     } = req.body || {};
@@ -145,6 +162,7 @@ export default async function handler(req, res) {
       origin ? bumpCounter("origin", normalizedOrigin) : Promise.resolve(),
       coffeeProcess ? bumpCounter("process", normalizedProcess) : Promise.resolve(),
       tempChoice ? bumpCounter("temp", tempChoice === "cold" ? "cold" : "hot") : Promise.resolve(),
+      cupCount ? bumpCounter("cupcount", String(cupCount)) : Promise.resolve(),
       ...grinderBumps,
       redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),
       redis.hset(`beans_meta:${beansId}`, {
