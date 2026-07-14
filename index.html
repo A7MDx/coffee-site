@@ -1,4 +1,4 @@
-<!-- Version: 36 -->
+<!-- Version: 37 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -340,7 +340,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "21.10.14.05.03.36.08.02";
+const APP_VERSION = "21.10.15.05.03.37.08.02";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -588,6 +588,9 @@ function CoffeeApp() {
     setPendingRating(0);
     setRatingComment("");
     setRatingSubmitted(false);
+    setRoastDateInput("");
+    setFreshnessResult(null);
+    setFreshnessError("");
     setStatus("done");
     setShowFavoritesModal(false);
   };
@@ -891,7 +894,7 @@ function CoffeeApp() {
                   <button className="ca-account-menu-item" onClick={openFavorites}>محاصيلي المفضلة</button>
                   <button className="ca-account-menu-item" onClick={openHistory}>دفتر قهوتي</button>
                   {(user.role === "owner" || user.role === "admin") && (
-                    <button className="ca-account-menu-item soon">الإحصائيات <span className="ca-account-menu-badge">(قريبًا)</span></button>
+                    <a className="ca-account-menu-item" href="/stats.html" style={{ display: "block", textDecoration: "none" }}>الإحصائيات</a>
                   )}
                   {user.role === "owner" && (
                     <button className="ca-account-menu-item soon">إدارة الحسابات <span className="ca-account-menu-badge">(قريبًا)</span></button>
@@ -1334,6 +1337,9 @@ function CoffeeApp() {
 
       <div className="ca-disclaimer">
         {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
+      </div>
+      <div style={{ textAlign: "center", marginTop: 10 }}>
+        <a href="/stats.html" style={{ fontSize: 11, color: "#8a7862" }}>الإحصائيات العامة</a>
       </div>
 
       {showHistoryModal && (
