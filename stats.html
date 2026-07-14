@@ -1,0 +1,175 @@
+<!-- Version: 01 -->
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>إحصائيات مُهل</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+</head>
+<body style="margin:0">
+<div id="stats-app"></div>
+<style>
+  #stats-app {
+    --ink: #2B1D14; --gold: #C89B3C; --parchment: #EDE6D6; --line: #D9CDB3; --error: #A83232;
+    font-family: 'Georgia', 'Noto Naskh Arabic', serif;
+    background: var(--parchment); color: var(--ink); min-height: 100vh; direction: rtl;
+  }
+  .st-wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 60px; }
+  .st-back { font-size: 13px; color: var(--ink); text-decoration: underline; }
+  .st-title { font-size: 24px; font-weight: 700; margin: 10px 0 4px; }
+  .st-sub { font-size: 13px; color: #6b5a4a; margin-bottom: 24px; }
+  .st-section-title { font-size: 15px; font-weight: 700; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .st-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
+  .st-card { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 16px; }
+  .st-card-title { font-size: 12.5px; color: #6b5a4a; margin-bottom: 10px; }
+  .st-list-item { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--parchment); }
+  .st-list-item:last-child { border-bottom: none; }
+  .st-list-count { font-family: 'Courier New', monospace; color: var(--gold); font-weight: 700; }
+  .st-big-number { font-size: 30px; font-weight: 700; font-family: 'Courier New', monospace; }
+  .st-big-label { font-size: 12px; color: #6b5a4a; margin-top: 4px; }
+  .st-empty { font-size: 13px; color: #8a7862; text-align: center; padding: 16px 0; }
+  .st-status { text-align: center; padding: 40px 0; color: #6b5a4a; }
+  .st-lock-note { font-size: 12px; color: #8a7862; margin-top: 4px; }
+  .st-private-badge { display: inline-block; background: var(--ink); color: var(--parchment); font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-right: 6px; }
+  .st-feed-item { font-size: 12.5px; padding: 8px 0; border-bottom: 1px solid var(--parchment); }
+  .st-feed-meta { color: #8a7862; font-size: 11px; }
+</style>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function StatsApp() {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [globalFeed, setGlobalFeed] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/stats")
+      .then(r => r.json())
+      .then(d => {
+        setData(d);
+        setLoading(false);
+        if (d.isPrivileged) {
+          fetch("/api/rate?type=global-feed")
+            .then(r => r.json())
+            .then(setGlobalFeed)
+            .catch(() => {});
+        }
+      })
+      .catch(e => { setError("تعذر تحميل الإحصائيات"); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="st-wrap"><div className="st-status">جارٍ التحميل...</div></div>;
+  if (error) return <div className="st-wrap"><div className="st-status">{error}</div></div>;
+
+  const List = ({ title, items, formatter }) => (
+    <div className="st-card">
+      <div className="st-card-title">{title}</div>
+      {(!items || items.length === 0) && <div className="st-empty">ما فيه بيانات كافية بعد</div>}
+      {items && items.map((item, i) => (
+        <div className="st-list-item" key={i}>
+          <span>{formatter ? formatter(item.key) : item.key}</span>
+          <span className="st-list-count">{item.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const RatedList = ({ title, items }) => (
+    <div className="st-card">
+      <div className="st-card-title">{title}</div>
+      {(!items || items.length === 0) && <div className="st-empty">ما فيه تقييمات كافية بعد</div>}
+      {items && items.map((item, i) => (
+        <div className="st-list-item" key={i}>
+          <span>{item.key}</span>
+          <span className="st-list-count">★ {item.average.toFixed(1)} ({item.count})</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const p = data.public;
+  const priv = data.private;
+
+  return (
+    <div className="st-wrap">
+      <a className="st-back" href="/">→ رجوع للموقع</a>
+      <div className="st-title">إحصائيات مُهل</div>
+      <div className="st-sub">أرقام حقيقية من استخدام الموقع الفعلي.</div>
+
+      <div className="st-section-title">الأكثر بحثًا هذا الشهر</div>
+      <div className="st-grid">
+        <List title="المحاصيل" items={p.topBeansThisMonth} formatter={(k) => k.split("_")[1] || k} />
+        <List title="المحمصة" items={p.topRoastery} />
+      </div>
+
+      <div className="st-section-title">الأكثر بحثًا (كل الوقت)</div>
+      <div className="st-grid">
+        <List title="بلد المنشأ" items={p.topOrigin} />
+        <List title="طريقة المعالجة" items={p.topProcess} />
+        <List title="شركة الطواحين" items={p.topGrinderBrand} />
+        <List title="موديل الطاحونة" items={p.topGrinderModel} />
+      </div>
+
+      <div className="st-section-title">حار مقابل بارد</div>
+      <div className="st-grid">
+        <List title="طريقة التحضير" items={p.tempSplit} formatter={(k) => k === "cold" ? "بارد" : "حار"} />
+      </div>
+
+      <div className="st-section-title">الأعلى تقييمًا</div>
+      <div className="st-grid">
+        <RatedList title="محاصيل" items={p.topRatedBeans} />
+        <RatedList title="محامص" items={p.topRatedRoastery} />
+      </div>
+
+      {priv && (
+        <>
+          <div className="st-section-title"><span className="st-private-badge">خاص</span>لوحة المالك</div>
+          <div className="st-grid">
+            <div className="st-card">
+              <div className="st-big-number">{priv.accountsTotal}</div>
+              <div className="st-big-label">إجمالي الحسابات المسجّلة</div>
+            </div>
+            <div className="st-card">
+              <div className="st-big-number">{priv.totalSearches}</div>
+              <div className="st-big-label">إجمالي عمليات البحث بالكاميرا</div>
+            </div>
+            <div className="st-card">
+              <div className="st-big-number">{priv.uniqueBeansCount}</div>
+              <div className="st-big-label">عدد المحاصيل الفريدة المسجّلة</div>
+            </div>
+            <div className="st-card">
+              <div className="st-big-number">{priv.commentsTotal}</div>
+              <div className="st-big-label">إجمالي التعليقات المكتوبة</div>
+            </div>
+          </div>
+
+          <div className="st-section-title">آخر التعليقات (كل المحاصيل)</div>
+          <div className="st-card">
+            {(!globalFeed || !globalFeed.feed || globalFeed.feed.length === 0) && (
+              <div className="st-empty">ما فيه تعليقات بعد</div>
+            )}
+            {globalFeed && globalFeed.feed && globalFeed.feed.map((c, i) => (
+              <div className="st-feed-item" key={i}>
+                <div>{"★".repeat(c.rating)} — {c.comment}</div>
+                <div className="st-feed-meta">{c.coffeeType || "محصول غير مسمّى"} · {c.roasteryName || "محمصة غير محددة"}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!priv && (
+        <div className="st-lock-note">لوحة المالك (حسابات، تعليقات، بحث إجمالي) تظهر بس لحساب المالك المسجّل دخوله.</div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.render(<StatsApp />, document.getElementById("stats-app"));
+</script>
+</body>
+</html>
