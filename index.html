@@ -1,4 +1,4 @@
-<!-- Version: 34 -->
+<!-- Version: 35 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -334,7 +334,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "20.10.14.05.03.34.08.01";
+const APP_VERSION = "20.10.14.05.03.35.08.02";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -492,6 +492,9 @@ function CoffeeApp() {
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
   const [favoritesList, setFavoritesList] = useState([]);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   React.useEffect(() => {
     fetch("/api/auth?action=me")
@@ -529,6 +532,21 @@ function CoffeeApp() {
   const logout = async () => {
     await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) });
     setUser(null);
+  };
+
+  const openHistory = async () => {
+    setShowAccountMenu(false);
+    setShowHistoryModal(true);
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/favorites?type=history");
+      const data = await res.json();
+      setHistoryList(data.history || []);
+    } catch (e) {
+      console.error("fetch history failed", e);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   const openFavorites = async () => {
@@ -724,7 +742,17 @@ function CoffeeApp() {
       });
       const data = await res.json();
       setSaved(true);
-      if (data.beansId) { setSavedBeansId(data.beansId); fetchComments(data.beansId); }
+      if (data.beansId) {
+        setSavedBeansId(data.beansId);
+        fetchComments(data.beansId);
+        if (user) {
+          fetch("/api/favorites", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "log-history", beansId: data.beansId, recipe: { ...parsedResult, savedTempChoice: temp } })
+          }).catch(e => console.error("log history failed", e));
+        }
+      }
       if (data.roasteryId) setSavedRoasteryId(data.roasteryId);
     } catch (e) {
       console.error("record failed", e);
@@ -819,6 +847,7 @@ function CoffeeApp() {
               {showAccountMenu && (
                 <div className="ca-account-menu">
                   <button className="ca-account-menu-item" onClick={openFavorites}>محاصيلي المفضلة</button>
+                  <button className="ca-account-menu-item" onClick={openHistory}>دفتر قهوتي</button>
                   {(user.role === "owner" || user.role === "admin") && (
                     <button className="ca-account-menu-item soon">الإحصائيات <span className="ca-account-menu-badge">(قريبًا)</span></button>
                   )}
@@ -1235,6 +1264,39 @@ function CoffeeApp() {
       <div className="ca-disclaimer">
         {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
       </div>
+
+      {showHistoryModal && (
+        <div className="ca-modal-overlay" onClick={() => setShowHistoryModal(false)}>
+          <div className="ca-modal-box" style={{ position: "relative", maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <button className="ca-account-link ca-modal-close" onClick={() => setShowHistoryModal(false)}>✕</button>
+            <div className="ca-modal-title">دفتر قهوتي</div>
+            <div className="ca-modal-sub">سجل تلقائي لكل قهوة حللتها، بالترتيب من الأحدث.</div>
+
+            {historyLoading && <div className="ca-status">جارٍ التحميل...</div>}
+            {!historyLoading && historyList.length === 0 && (
+              <div className="ca-fav-empty">ما فيه سجل بعد — حلّل أول محصول وبيسجّل هنا تلقائيًا.</div>
+            )}
+            {!historyLoading && historyList.map((h, i) => {
+              const r = h.recipe;
+              if (!r) return null;
+              const tempLabel = r.savedTempChoice === "cold" ? "بارد" : "حار";
+              const roasteryLabel = r.roastery_name && r.roastery_name.toLowerCase() !== "unknown" ? r.roastery_name : "محمصة غير محددة";
+              const dateLabel = new Date(h.loggedAt).toLocaleDateString("ar-SA");
+              return (
+                <div
+                  className="ca-fav-list-item"
+                  key={i}
+                  style={{ cursor: "pointer", flexDirection: "column", alignItems: "flex-start" }}
+                  onClick={() => { viewFavoriteRecipe(r, h.beansId); setShowHistoryModal(false); }}
+                >
+                  <span>{roasteryLabel} · {r.coffee_type} · {tempLabel}</span>
+                  <span style={{ fontSize: 11, color: "#8a7862" }}>{dateLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {showFavoritesModal && (
         <div className="ca-modal-overlay" onClick={() => setShowFavoritesModal(false)}>
