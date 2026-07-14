@@ -1,4 +1,4 @@
-<!-- Version: 35 -->
+<!-- Version: 36 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -265,6 +265,12 @@
   .ca-fav-remove { background: none; border: none; color: var(--error); cursor: pointer; font-size: 12px; font-family: inherit; }
   .ca-fav-empty { font-size: 13px; color: #8a7862; text-align: center; padding: 20px 0; }
 
+  .ca-fresh-block { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .ca-fresh-status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 700; margin-bottom: 10px; }
+  .ca-fresh-status.early { background: #E7F2F3; color: var(--cold); }
+  .ca-fresh-status.peak { background: #EAF3DE; color: #3B6D11; }
+  .ca-fresh-status.late { background: #FBEDE6; color: var(--hot); }
+
   /* Favorite button */
   .ca-fav-btn {
     position: absolute; top: 16px; left: 16px; background: none; border: none; font-size: 22px;
@@ -334,7 +340,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "20.10.14.05.03.35.08.02";
+const APP_VERSION = "21.10.14.05.03.36.08.02";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -464,6 +470,10 @@ function CoffeeApp() {
   const [pendingRating, setPendingRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [productComments, setProductComments] = useState([]);
+  const [roastDateInput, setRoastDateInput] = useState("");
+  const [freshnessResult, setFreshnessResult] = useState(null);
+  const [freshnessLoading, setFreshnessLoading] = useState(false);
+  const [freshnessError, setFreshnessError] = useState("");
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [knownRoasteries, setKnownRoasteries] = useState([]);
   const [showRoasteryDropdown, setShowRoasteryDropdown] = useState(false);
@@ -694,6 +704,9 @@ function CoffeeApp() {
       setRoasteryInput("");
       setPendingRating(0);
       setRatingComment("");
+      setRoastDateInput("");
+      setFreshnessResult(null);
+      setFreshnessError("");
       setRatingSubmitted(false);
       setComparison(null);
       setRefineError("");
@@ -756,6 +769,35 @@ function CoffeeApp() {
       if (data.roasteryId) setSavedRoasteryId(data.roasteryId);
     } catch (e) {
       console.error("record failed", e);
+    }
+  };
+
+  const checkFreshness = async () => {
+    if (!roastDateInput || !result) return;
+    setFreshnessLoading(true);
+    setFreshnessError("");
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "freshness",
+          beanProfile: {
+            coffee_type: result.coffee_type,
+            roast_level: result.roast_level,
+            origin: result.origin,
+            process: result.process
+          },
+          roastDate: roastDateInput
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "فشل الحساب");
+      setFreshnessResult(data);
+    } catch (e) {
+      setFreshnessError(e.message);
+    } finally {
+      setFreshnessLoading(false);
     }
   };
 
@@ -1141,6 +1183,35 @@ function CoffeeApp() {
                   ))}
                 </div>
               )}
+
+              <div className="ca-fresh-block">
+                <div className="ca-rating-label">متى أفضل وقت لشرب هذا البن؟ (اختياري)</div>
+                <div style={{ fontSize: 12, color: "#8a7862", marginBottom: 10 }}>لو تاريخ التحميص مكتوب على الكيس، أدخله ونوضح لك ليش هذا التوقيت بالذات.</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="ca-text-input"
+                    type="date"
+                    value={roastDateInput}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => { setRoastDateInput(e.target.value); setFreshnessResult(null); }}
+                    style={{ flex: 1 }}
+                  />
+                  <button className="ca-btn small" onClick={checkFreshness} disabled={!roastDateInput || freshnessLoading}>
+                    {freshnessLoading ? "جارٍ الحساب..." : "وضّح لي"}
+                  </button>
+                </div>
+                {freshnessError && <div className="ca-status error" style={{ padding: "10px 0" }}>{freshnessError}</div>}
+                {freshnessResult && (
+                  <div style={{ marginTop: 12 }}>
+                    <span className={`ca-fresh-status ${
+                      freshnessResult.current_status === "لسه مبكر" ? "early" :
+                      freshnessResult.current_status === "بدأ يفقد نكهته" ? "late" : "peak"
+                    }`}>{freshnessResult.current_status} · يوم {freshnessResult.daysSinceRoast} من التحميص</span>
+                    <div style={{ fontSize: 13, lineHeight: 1.8, color: "#4a3b2c" }}>{freshnessResult.why}</div>
+                    <div style={{ fontSize: 11.5, color: "#8a7862", marginTop: 6 }}>النافذة المثلى المتوقعة: من يوم {freshnessResult.window_start_days} إلى يوم {freshnessResult.window_end_days} بعد التحميص</div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
