@@ -1,4 +1,4 @@
-// Version: 02
+// Version: 03
 // حفظ الوصفة الكاملة (مو بس إحصائيات) تحت حساب العميل — يخلي النتيجة تُعرض
 // له لاحقًا بالضبط زي ما ظهرت أول مرة، بدون إعادة استدعاء الذكاء الاصطناعي.
 // الحذف بيد العميل بالكامل، ما فيه انتهاء صلاحية تلقائي.
@@ -77,9 +77,11 @@ export default async function handler(req, res) {
       if (!beansId || !recipe) {
         return res.status(400).json({ error: "بيانات ناقصة" });
       }
+      const alreadyFavorited = await redis.sismember(`user_favorites:${userId}`, beansId);
       await Promise.all([
         redis.sadd(`user_favorites:${userId}`, beansId),
-        redis.hset(`favorite:${userId}:${beansId}`, { recipe: JSON.stringify(recipe), savedAt: new Date().toISOString() })
+        redis.hset(`favorite:${userId}:${beansId}`, { recipe: JSON.stringify(recipe), savedAt: new Date().toISOString() }),
+        !alreadyFavorited ? redis.incr("favorites:total") : Promise.resolve() // نزيد بس لو إضافة فعلية جديدة
       ]);
       return res.status(200).json({ ok: true });
     }
@@ -87,9 +89,11 @@ export default async function handler(req, res) {
     // حذف من المفضلة — قرار العميل بالكامل
     if (action === "remove") {
       if (!beansId) return res.status(400).json({ error: "بيانات ناقصة" });
+      const wasFavorited = await redis.sismember(`user_favorites:${userId}`, beansId);
       await Promise.all([
         redis.srem(`user_favorites:${userId}`, beansId),
-        redis.del(`favorite:${userId}:${beansId}`)
+        redis.del(`favorite:${userId}:${beansId}`),
+        wasFavorited ? redis.decr("favorites:total") : Promise.resolve()
       ]);
       return res.status(200).json({ ok: true });
     }
