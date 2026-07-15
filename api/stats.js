@@ -1,4 +1,4 @@
-// Version: 02
+// Version: 03
 // يجمع كل بيانات صفحة الإحصائيات بطلب واحد بدل عدة طلبات متفرقة.
 // القسم العام يرجع لأي زائر. القسم الخاص (accounts, total searches, آخر
 // التعليقات) يرجع بس لو الطالب owner أو admin.
@@ -111,12 +111,30 @@ export default async function handler(req, res) {
 
     let privateStats = null;
     if (isPrivileged) {
-      const [accountsTotal, beansMetaKeysCount, commentsTotal, cupCountAll] = await Promise.all([
+      const [
+        accountsTotal, beansMetaKeysCount, commentsTotal, cupCountAll,
+        grinderCustomAll, refineUsage, freshnessUsage,
+        favoritesTotal, grinderModeAll
+      ] = await Promise.all([
         redis.get("accounts:total"),
         Promise.resolve(Object.keys(beansAll || {}).length), // عدد المحاصيل الفريدة
         redis.get("comments:total"),
-        redis.hgetall("cupcount:all")
+        redis.hgetall("cupcount:all"),
+        redis.hgetall("grinder_custom:all"),
+        redis.get("feature_usage:refine"),
+        redis.get("feature_usage:freshness"),
+        redis.get("favorites:total"),
+        redis.hgetall("grinder_mode_choice:all")
       ]);
+
+      // نجيب الاسم المقروء الفعلي لكل طاحونة يدوية (مو بس الرمز المشفّر)
+      const grinderCustomNames = await Promise.all(
+        Object.keys(grinderCustomAll || {}).map(async (slug) => {
+          const meta = await redis.hget(`grinder_custom_meta:${slug}`, "displayName");
+          return { key: meta || slug, count: Number(grinderCustomAll[slug]) };
+        })
+      );
+      grinderCustomNames.sort((a, b) => b.count - a.count);
 
       const totalSearches = Object.values(beansAll || {}).reduce((sum, v) => sum + Number(v), 0);
 
@@ -125,7 +143,12 @@ export default async function handler(req, res) {
         totalSearches,
         uniqueBeansCount: beansMetaKeysCount,
         commentsTotal: commentsTotal || 0,
-        cupCountSplit: topN(cupCountAll, 3)
+        cupCountSplit: topN(cupCountAll, 3),
+        grinderCustomNames: grinderCustomNames.slice(0, 30),
+        refineUsageCount: refineUsage || 0,
+        freshnessUsageCount: freshnessUsage || 0,
+        favoritesTotal: favoritesTotal || 0,
+        grinderModeSplit: topN(grinderModeAll, 3)
       };
     }
 
