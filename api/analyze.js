@@ -1,4 +1,4 @@
-// Version: 24  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
+// Version: 25  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
 // هذا الملف يشتغل على السيرفر فقط (Vercel) — المستخدم أبدًا ما يشوف محتواه.
 // 4 أوضاع:
 //  1) mode=identify: يستقبل الصورة بس، يتعرف على المحصول (بدون وصفة) — خطوة أولى خفيفة.
@@ -6,6 +6,15 @@
 //     (نصي، بدون صورة)، ويبني الوصفة الكاملة.
 //  3) mode=refine: "تحسين الوصفة" حسب تفضيلات حسية جديدة.
 //  4) mode=freshness: نافذة الذروة حسب تاريخ التحميص.
+// كل استخدام ناجح لـ refine أو freshness يسجَّل بعداد بسيط (إجمالي دائم) —
+// يفيد المالك يعرف كم شخص فعليًا يستخدم هذي الميزات.
+
+import { Redis } from "@upstash/redis";
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+});
 
 const requestLog = new Map();
 const MAX_REQUESTS_PER_HOUR = 20;
@@ -222,6 +231,7 @@ ${RESULT_SCHEMA}
 ${POUR_LABEL_RULE}`
       }
     ]);
+    redis.incr("feature_usage:refine").catch(() => {}); // تسجيل استخدام، ما نوقف الرد لو فشل
     return res.status(200).json(parsed);
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
@@ -278,6 +288,7 @@ ${JSON.stringify(beanProfile)}
       }
     ], 800);
 
+    redis.incr("feature_usage:freshness").catch(() => {});
     return res.status(200).json({ ...parsed, daysSinceRoast });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
