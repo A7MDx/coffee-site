@@ -1,4 +1,4 @@
-// Version: 11
+// Version: 12
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -163,6 +163,7 @@ export default async function handler(req, res) {
       coffeeProcess ? bumpCounter("process", normalizedProcess) : Promise.resolve(),
       tempChoice ? bumpCounter("temp", tempChoice === "cold" ? "cold" : "hot") : Promise.resolve(),
       cupCount ? bumpCounter("cupcount", String(cupCount)) : Promise.resolve(),
+      grinderMode ? bumpCounter("grinder_mode_choice", grinderMode) : Promise.resolve(),
       ...grinderBumps,
       redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),
       redis.hset(`beans_meta:${beansId}`, {
