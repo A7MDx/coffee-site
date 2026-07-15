@@ -1,6 +1,6 @@
-// Version: 08
+// Version: 09
 // نظام الحسابات: تسجيل بإيميل + كلمة مرور، دخول، خروج، والتحقق من الجلسة الحالية.
-// بدون أي خدمة إيميل خارجية — يدخل مباشرة بعد التسجيل بدون تأكيد.
+// بدون أي خدمة إيميل خارجية وقت التسجيل — يدخل مباشرة بدون تأكيد.
 // الجلسة تُدار عبر كوكي آمن (HttpOnly) يحمل رمز جلسة عشوائي، والرمز نفسه
 // مخزّن بـ Upstash Redis مربوط بمعرّف المستخدم.
 //
@@ -9,6 +9,10 @@
 // كتابة بسيط) — غيابه يعني تلقائيًا "user". يُكتب صراحة بس لما يصير admin/owner.
 // أول مالك يُفعّل عبر مفتاح سري (OWNER_BOOTSTRAP_SECRET) لمرة وحدة فقط، وبعدها
 // المالك نفسه يقدر يرفّع حسابات ثانية بدون الحاجة للمفتاح مرة ثانية.
+//
+// نسيت كلمة المرور: أول استخدام فعلي لخدمة الإيميل (Resend) بالموقع. رابط
+// الاسترجاع صالح لمدة ساعة بس، ومرة وحدة (يُحذف فور الاستخدام). ما نكشف للزائر
+// هل الإيميل مسجّل عندنا أو لا (حماية من تخمين الحسابات الموجودة).
 
 import { Redis } from "@upstash/redis";
 import crypto from "crypto";
@@ -20,6 +24,20 @@ const redis = new Redis({
 
 const SESSION_DAYS = 30;
 const SESSION_SECONDS = SESSION_DAYS * 24 * 60 * 60;
+const RESET_TOKEN_SECONDS = 60 * 60; // ساعة وحدة بس
+
+// حماية بسيطة من محاولات الدخول المتكررة (Brute force) — بالذاكرة المؤقتة
+// للسيرفر، نفس أسلوب الحد بملف analyze.js
+const attemptLog = new Map();
+const MAX_ATTEMPTS_PER_HOUR = 10;
+function isRateLimited(key) {
+  const now = Date.now();
+  const hour = 60 * 60 * 1000;
+  const timestamps = (attemptLog.get(key) || []).filter(t => now - t < hour);
+  timestamps.push(now);
+  attemptLog.set(key, timestamps);
+  return timestamps.length > MAX_ATTEMPTS_PER_HOUR;
+}
 
 function isValidEmail(email) {
   // تحقق واقعي من صيغة الإيميل: اسم@نطاق.امتداد — يرفض أي كلام عشوائي
@@ -43,6 +61,35 @@ function verifyPassword(password, salt, expectedHash) {
 
 function makeToken() {
   return crypto.randomBytes(32).toString("hex");
+}
+
+// إرسال إيميل عبر Resend — يُستخدم هنا بس لرابط استرجاع كلمة المرور
+async function sendResetEmail(toEmail, resetLink) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: "مُهل <no-reply@mohl.coffee>",
+      to: [toEmail],
+      subject: "استرجاع كلمة المرور — مُهل",
+      html: `
+        <div dir="rtl" style="font-family: Georgia, serif; color: #2B1D14;">
+          <h2>استرجاع كلمة المرور</h2>
+          <p>وصلنا طلب لاسترجاع كلمة مرور حسابك بموقع مُهل. اضغط الرابط تحت لتعيين كلمة مرور جديدة:</p>
+          <p><a href="${resetLink}" style="background:#C89B3C;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;">تعيين كلمة مرور جديدة</a></p>
+          <p style="font-size:12px;color:#8a7862;">هذا الرابط صالح لمدة ساعة وحدة بس. لو ما طلبت هذا الاسترجاع، تجاهل الإيميل ببساطة.</p>
+        </div>
+      `
+    })
+  });
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Resend send error:", errText);
+    throw new Error("فشل إرسال إيميل الاسترجاع");
+  }
 }
 
 function setSessionCookie(res, token) {
@@ -143,6 +190,10 @@ export default async function handler(req, res) {
       const email = normalizeEmail(req.body.email);
       const password = req.body.password || "";
 
+      if (isRateLimited(`login:${email}`)) {
+        return res.status(429).json({ error: "محاولات كثيرة جدًا، حاول بعد شوي" });
+      }
+
       const lookup = await redis.hgetall(`user_by_email:${email}`);
       if (!lookup || !lookup.userId) {
         return res.status(401).json({ error: "البريد أو كلمة المرور غير صحيحة" });
@@ -155,6 +206,61 @@ export default async function handler(req, res) {
 
       await createSession(lookup.userId, res);
       return res.status(200).json({ ok: true, user: { userId: lookup.userId, email: user.email, displayName: user.displayName || "", role: user.role || "user" } });
+    }
+
+    // طلب استرجاع كلمة المرور — يرسل إيميل فيه رابط صالح لساعة وحدة
+    if (action === "request-password-reset") {
+      const email = normalizeEmail(req.body.email);
+
+      if (isRateLimited(`reset:${email}`)) {
+        return res.status(429).json({ error: "محاولات كثيرة جدًا، حاول بعد شوي" });
+      }
+
+      // نرجع نفس الرسالة دائمًا (سواء الإيميل مسجّل أو لا) — عشان محد يقدر
+      // يكتشف أي إيميلات مسجّلة عندنا بمجرد تجربتها هنا
+      const genericMessage = "لو هذا البريد مسجّل عندنا، وصلته رسالة استرجاع الآن";
+
+      if (!email || !isValidEmail(email)) {
+        return res.status(200).json({ ok: true, message: genericMessage });
+      }
+
+      const lookup = await redis.hgetall(`user_by_email:${email}`);
+      if (lookup && lookup.userId) {
+        const token = makeToken();
+        await redis.set(`password_reset:${token}`, lookup.userId, { ex: RESET_TOKEN_SECONDS });
+        const resetLink = `https://mohl.coffee/?reset=${token}`;
+        try {
+          await sendResetEmail(email, resetLink);
+        } catch (e) {
+          console.error("Failed to send reset email:", e);
+          // ما نفشل الطلب للزائر حتى لو فشل الإرسال فعليًا — نفس مبدأ عدم كشف المعلومة
+        }
+      }
+
+      return res.status(200).json({ ok: true, message: genericMessage });
+    }
+
+    // تنفيذ استرجاع كلمة المرور — يستهلك الرابط لمرة وحدة بس
+    if (action === "reset-password") {
+      const { token, newPassword } = req.body;
+      if (!token || !newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: "كلمة المرور لازم تكون 6 أحرف على الأقل" });
+      }
+
+      const userId = await redis.get(`password_reset:${token}`);
+      if (!userId) {
+        return res.status(400).json({ error: "رابط الاسترجاع منتهي أو غير صحيح — اطلب رابط جديد" });
+      }
+
+      const salt = crypto.randomBytes(16).toString("hex");
+      const passwordHash = hashPassword(newPassword, salt);
+
+      await Promise.all([
+        redis.hset(`user:${userId}`, { salt, passwordHash }),
+        redis.del(`password_reset:${token}`)
+      ]);
+
+      return res.status(200).json({ ok: true });
     }
 
     // تسجيل الخروج
