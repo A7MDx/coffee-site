@@ -1,5 +1,9 @@
-// Version: 15
+// Version: 16
 // هذا الملف يسجّل تقييم العميل (1-5 نجوم) لمحصول معيّن، ويربطه أيضًا بالمحمصة.
+// التقييم يتطلب تسجيل دخول إلزاميًا، ومرة وحدة بس لكل محصول لكل حساب (يمنع
+// عبر مفتاح user_rated:{userId}:{beansId}) — لو يبي يغيّر رأيه، يحذف تقييمه
+// القديم أول (وهذا يرجع ينقص الرقم من متوسط التقييم العام صح) وبعدها يقدر
+// يقيّم من جديد.
 // نخزن مجموع التقييمات وعددها بشكل منفصل (يومي + إجمالي دائم)، عشان نقدر نحسب
 // لاحقًا "متوسط التقييم" لأي فترة نبيها (هذا الشهر، آخر 30 يوم، أو كل الوقت).
 //
@@ -89,7 +93,7 @@ export default async function handler(req, res) {
   try {
     const { action } = req.body || {};
 
-    // حذف تعليق — بس صاحبه أو المالك يقدر
+    // حذف تعليق/تقييم — بس صاحبه أو المالك يقدر، ويرجع ينقص من متوسط التقييم العام
     if (action === "delete-comment") {
       const { beansId, commentId } = req.body;
       if (!beansId || !commentId) {
@@ -112,11 +116,22 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: "ما عندك صلاحية تحذف هذا التعليق" });
       }
 
-      await redis.hdel(`beans_comments:${beansId}`, commentId);
+      const tasks = [redis.hdel(`beans_comments:${beansId}`, commentId)];
+
+      // نرجع ننقص من متوسط التقييم العام — بدون هذا، حذف تقييم ما يرجع يصحح الرقم الظاهر للناس
+      if (commentData.rating) {
+        tasks.push(bumpRating("beans", beansId, -commentData.rating));
+        if (commentData.roasteryId) tasks.push(bumpRating("roastery", commentData.roasteryId, -commentData.rating));
+      }
+
+      // نفك القفل عن صاحب التعليق الأصلي — يقدر يقيّم من جديد بعد الحذف
+      if (commentData.userId) tasks.push(redis.del(`user_rated:${commentData.userId}:${beansId}`));
+
+      await Promise.all(tasks);
       return res.status(200).json({ ok: true });
     }
 
-    // تسجيل تقييم جديد (+ تعليق اختياري)
+    // تسجيل تقييم جديد (+ تعليق اختياري) — يتطلب تسجيل دخول، ومرة وحدة بس لكل محصول
     const { beansId, roasteryId, rating, comment } = req.body || {};
     const stars = Number(rating);
     const commentText = (comment || "").toString().trim().slice(0, 500);
@@ -125,22 +140,34 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "بيانات تقييم غير صحيحة" });
     }
 
+    const requester = await getRequester(req);
+    if (!requester) {
+      return res.status(401).json({ error: "لازم تسجّل دخول أول عشان تقيّم" });
+    }
+
+    const alreadyRated = await redis.get(`user_rated:${requester.userId}:${beansId}`);
+    if (alreadyRated) {
+      return res.status(409).json({ error: "قيّمت هذا المحصول من قبل — احذف تقييمك القديم لو تبي تغيّره" });
+    }
+
+    const commentId = crypto.randomUUID();
+    const meta = await redis.hgetall(`beans_meta:${beansId}`);
+    const commentRecord = {
+      rating: stars,
+      comment: commentText,
+      userId: requester.userId,
+      roasteryId: roasteryId || null,
+      createdAt: new Date().toISOString()
+    };
+
     const tasks = [
       bumpRating("beans", beansId, stars),
-      roasteryId ? bumpRating("roastery", roasteryId, stars) : Promise.resolve()
+      roasteryId ? bumpRating("roastery", roasteryId, stars) : Promise.resolve(),
+      redis.hset(`beans_comments:${beansId}`, { [commentId]: JSON.stringify(commentRecord) }),
+      redis.set(`user_rated:${requester.userId}:${beansId}`, commentId)
     ];
 
     if (commentText) {
-      const requester = await getRequester(req); // قد يكون null لو ما سجّل دخول — التعليق يبقى مسموح، بس بدون إمكانية حذف ذاتي لاحقًا
-      const commentId = crypto.randomUUID();
-      const meta = await redis.hgetall(`beans_meta:${beansId}`); // نجيب اسم المحصول والمحمصة للعرض بالقائمة العامة
-      const commentRecord = {
-        rating: stars,
-        comment: commentText,
-        userId: requester ? requester.userId : null,
-        createdAt: new Date().toISOString()
-      };
-      tasks.push(redis.hset(`beans_comments:${beansId}`, { [commentId]: JSON.stringify(commentRecord) }));
       tasks.push(redis.incr("comments:total"));
       tasks.push(
         redis.lpush("global_comments_feed", JSON.stringify({
@@ -156,7 +183,7 @@ export default async function handler(req, res) {
 
     await Promise.all(tasks);
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, commentId });
   } catch (err) {
     console.error("Rate error:", err);
     return res.status(500).json({ ok: false, error: "فشل حفظ التقييم" });
