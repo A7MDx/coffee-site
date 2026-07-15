@@ -1,4 +1,4 @@
-<!-- Version: 02 -->
+<!-- Version: 03 -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -155,6 +155,41 @@ function StatsApp() {
               {priv.cupCountSplit && priv.cupCountSplit.map((item, i) => (
                 <div className="st-list-item" key={i}>
                   <span>{"☕️".repeat(Number(item.key))} ({item.key})</span>
+                  <span className="st-list-count">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="st-section-title">استخدام الميزات المتقدمة</div>
+          <div className="st-grid">
+            <div className="st-card">
+              <div className="st-big-number">{priv.refineUsageCount}</div>
+              <div className="st-big-label">استخدموا "تحسين الوصفة"</div>
+            </div>
+            <div className="st-card">
+              <div className="st-big-number">{priv.freshnessUsageCount}</div>
+              <div className="st-big-label">استخدموا "متى أفضل وقت"</div>
+            </div>
+            <div className="st-card">
+              <div className="st-big-number">{priv.favoritesTotal}</div>
+              <div className="st-big-label">إجمالي المحاصيل المحفوظة بالمفضلة</div>
+            </div>
+          </div>
+
+          <div className="st-section-title">طريقة اختيار الطاحونة</div>
+          <div className="st-grid">
+            <List
+              title="كيف يحدد عملاؤك طاحونتهم؟"
+              items={priv.grinderModeSplit}
+              formatter={(k) => k === "list" ? "من القائمة" : k === "custom" ? "كتابة يدوية" : "بدون تحديد"}
+            />
+            <div className="st-card">
+              <div className="st-card-title">أسماء طواحين كتبها العملاء يدويًا</div>
+              {(!priv.grinderCustomNames || priv.grinderCustomNames.length === 0) && <div className="st-empty">ما فيه بيانات كافية بعد</div>}
+              {priv.grinderCustomNames && priv.grinderCustomNames.map((item, i) => (
+                <div className="st-list-item" key={i}>
+                  <span>{item.key}</span>
                   <span className="st-list-count">{item.count}</span>
                 </div>
               ))}
