@@ -1,4 +1,4 @@
-<!-- Version: 42 -->
+<!-- Version: 43 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -354,7 +354,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "25.12.16.05.03.42.08.03";
+const APP_VERSION = "25.12.16.05.03.43.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -511,6 +511,13 @@ function CoffeeApp() {
   const [authName, setAuthName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState("");
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showFavoritesModal, setShowFavoritesModal] = useState(false);
@@ -550,6 +557,56 @@ function CoffeeApp() {
       setAuthError(e.message);
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  const submitForgotPassword = async () => {
+    setAuthLoading(true);
+    setAuthError("");
+    setForgotMessage("");
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "request-password-reset", email: authEmail })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "حدث خطأ");
+      setForgotMessage(data.message || "لو هذا البريد مسجّل عندنا، وصلته رسالة استرجاع الآن");
+    } catch (e) {
+      setAuthError(e.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // لو الرابط فيه ?reset=token (جاي من إيميل الاسترجاع)، نفتح نموذج تعيين كلمة مرور جديدة
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("reset");
+    if (token) {
+      setResetToken(token);
+      setShowResetModal(true);
+      window.history.replaceState({}, "", window.location.pathname); // نشيل الرمز من الرابط الظاهر
+    }
+  }, []);
+
+  const submitResetPassword = async () => {
+    setResetLoading(true);
+    setResetError("");
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset-password", token: resetToken, newPassword: newPasswordInput })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "حدث خطأ");
+      setResetSuccess(true);
+    } catch (e) {
+      setResetError(e.message);
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -1511,8 +1568,14 @@ function CoffeeApp() {
         <div className="ca-modal-overlay" onClick={() => setShowAuthModal(false)}>
           <div className="ca-modal-box" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
             <button className="ca-account-link ca-modal-close" onClick={() => setShowAuthModal(false)}>✕</button>
-            <div className="ca-modal-title">{authMode === "login" ? "تسجيل الدخول" : "إنشاء حساب"}</div>
-            <div className="ca-modal-sub">{authMode === "login" ? "سجّل دخولك للوصول لمحاصيلك المحفوظة" : "أنشئ حساب لتحفظ المحاصيل اللي تعجبك"}</div>
+            <div className="ca-modal-title">
+              {authMode === "login" ? "تسجيل الدخول" : authMode === "signup" ? "إنشاء حساب" : "استرجاع كلمة المرور"}
+            </div>
+            <div className="ca-modal-sub">
+              {authMode === "login" ? "سجّل دخولك للوصول لمحاصيلك المحفوظة" :
+               authMode === "signup" ? "أنشئ حساب لتحفظ المحاصيل اللي تعجبك" :
+               "أدخل إيميلك وبنرسل لك رابط لتعيين كلمة مرور جديدة"}
+            </div>
 
             {authMode === "signup" && (
               <div className="ca-modal-field">
@@ -1524,24 +1587,67 @@ function CoffeeApp() {
               <label>البريد الإلكتروني</label>
               <input className="ca-text-input" style={{ width: "100%" }} type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="example@email.com" />
             </div>
-            <div className="ca-modal-field">
-              <label>كلمة المرور</label>
-              <input className="ca-text-input" style={{ width: "100%" }} type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="6 أحرف على الأقل" />
-            </div>
+
+            {authMode !== "forgot" && (
+              <div className="ca-modal-field">
+                <label>كلمة المرور</label>
+                <input className="ca-text-input" style={{ width: "100%" }} type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder="6 أحرف على الأقل" />
+              </div>
+            )}
+
+            {authMode === "login" && (
+              <div style={{ textAlign: "left", marginBottom: 12 }}>
+                <button className="ca-account-link" onClick={() => { setAuthMode("forgot"); setAuthError(""); setForgotMessage(""); }}>نسيت كلمة المرور؟</button>
+              </div>
+            )}
 
             {authError && <div className="ca-modal-error">{authError}</div>}
+            {forgotMessage && <div className="ca-rating-thanks" style={{ marginBottom: 12 }}>{forgotMessage}</div>}
 
-            <button className="ca-btn" style={{ width: "100%" }} onClick={submitAuth} disabled={authLoading}>
-              {authLoading ? "جارٍ التحقق..." : (authMode === "login" ? "دخول" : "إنشاء الحساب")}
-            </button>
+            {authMode === "forgot" ? (
+              <button className="ca-btn" style={{ width: "100%" }} onClick={submitForgotPassword} disabled={authLoading}>
+                {authLoading ? "جارٍ الإرسال..." : "أرسل رابط الاسترجاع"}
+              </button>
+            ) : (
+              <button className="ca-btn" style={{ width: "100%" }} onClick={submitAuth} disabled={authLoading}>
+                {authLoading ? "جارٍ التحقق..." : (authMode === "login" ? "دخول" : "إنشاء الحساب")}
+              </button>
+            )}
 
             <div className="ca-modal-switch">
-              {authMode === "login" ? (
+              {authMode === "login" && (
                 <>ما عندك حساب؟ <button onClick={() => { setAuthMode("signup"); setAuthError(""); }}>أنشئ واحد</button></>
-              ) : (
+              )}
+              {authMode === "signup" && (
                 <>عندك حساب؟ <button onClick={() => { setAuthMode("login"); setAuthError(""); }}>سجّل دخول</button></>
               )}
+              {authMode === "forgot" && (
+                <>تذكّرت كلمة مرورك؟ <button onClick={() => { setAuthMode("login"); setAuthError(""); setForgotMessage(""); }}>سجّل دخول</button></>
+              )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showResetModal && (
+        <div className="ca-modal-overlay">
+          <div className="ca-modal-box" style={{ position: "relative" }}>
+            <div className="ca-modal-title">تعيين كلمة مرور جديدة</div>
+            <div className="ca-modal-sub">اكتب كلمة مرور جديدة لحسابك.</div>
+            <div className="ca-modal-field">
+              <label>كلمة المرور الجديدة</label>
+              <input className="ca-text-input" style={{ width: "100%" }} type="password" value={newPasswordInput} onChange={(e) => setNewPasswordInput(e.target.value)} placeholder="6 أحرف على الأقل" />
+            </div>
+            {resetError && <div className="ca-modal-error">{resetError}</div>}
+            {resetSuccess && <div className="ca-rating-thanks" style={{ marginBottom: 12 }}>تم تغيير كلمة المرور بنجاح! تقدر تسجّل دخول الآن.</div>}
+            {!resetSuccess && (
+              <button className="ca-btn" style={{ width: "100%" }} onClick={submitResetPassword} disabled={resetLoading}>
+                {resetLoading ? "جارٍ الحفظ..." : "احفظ كلمة المرور الجديدة"}
+              </button>
+            )}
+            {resetSuccess && (
+              <button className="ca-btn" style={{ width: "100%" }} onClick={() => { setShowResetModal(false); setShowAuthModal(true); setAuthMode("login"); }}>سجّل دخول الآن</button>
+            )}
           </div>
         </div>
       )}
