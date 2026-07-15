@@ -1,4 +1,4 @@
-<!-- Version: 41 -->
+<!-- Version: 42 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -31,7 +31,7 @@
     padding: 0;
     direction: rtl;
   }
-  .ca-wrap { max-width: 520px; margin: 0 auto; padding: 32px 20px 60px; }
+  .ca-wrap { max-width: 520px; margin: 0 auto; padding: 14px 20px 60px; }
   .ca-eyebrow {
     font-family: 'Courier New', monospace;
     font-size: 11px;
@@ -173,7 +173,7 @@
 
   .ca-rating-block { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
   .ca-rating-label { font-size: 13px; color: #4a3b2c; margin-bottom: 8px; }
-  .ca-rating-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .ca-rating-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
   .ca-stars { font-size: 26px; display: flex; gap: 4px; cursor: pointer; }
   .ca-star { color: var(--line); transition: color .1s; }
   .ca-star.filled { color: var(--gold); }
@@ -270,6 +270,20 @@
   .ca-fresh-status.early { background: #E7F2F3; color: var(--cold); }
   .ca-fresh-status.peak { background: #EAF3DE; color: #3B6D11; }
   .ca-fresh-status.late { background: #FBEDE6; color: var(--hot); }
+  .ca-fresh-status.declining { background: #FBF3E0; color: #A67C1E; }
+
+  .ca-fresh-bar-wrap { position: relative; margin-top: 16px; padding-top: 16px; }
+  .ca-fresh-arrow { position: absolute; top: 0; transform: translateX(50%); font-size: 13px; color: var(--ink); line-height: 1; }
+  .ca-fresh-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
+  .ca-fresh-zone { flex: 1; }
+  .ca-fresh-zone:nth-child(1) { background: #E7EFE3; }
+  .ca-fresh-zone:nth-child(2) { background: #C9E4B5; }
+  .ca-fresh-zone:nth-child(3) { background: #F3D9A4; }
+  .ca-fresh-zone:nth-child(4) { background: #EAB69A; }
+  .ca-fresh-bar-labels { display: flex; justify-content: space-between; font-size: 9.5px; color: #8a7862; margin-top: 4px; }
+  .ca-fresh-bar-labels span { flex: 1; text-align: center; }
+  .ca-fresh-bar-labels span:first-child { text-align: right; }
+  .ca-fresh-bar-labels span:last-child { text-align: left; }
 
   /* Favorite button */
   .ca-fav-btn {
@@ -340,12 +354,12 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "23.11.15.05.03.41.08.02";
+const APP_VERSION = "24.11.16.05.03.42.08.02";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
   "1Zpresso": ["J-Max", "JX-Pro", "K-Max", "Q2", "ZP6"],
-  "Baratza": ["Encore", "Encore ESP", "Sette 270", "Virtuoso+"],
+  "Baratza": ["Encore", "Encore ESP", "Virtuoso+", "Sette 30", "Sette 270", "Vario+", "Forte AP", "Forte BG"],
   "Fellow": ["Ode Gen 2", "Opus"],
   "Timemore": ["C2", "C3", "Chestnut X"],
   "Hario": ["Skerton Pro", "Mini Mill"],
@@ -475,6 +489,7 @@ function CoffeeApp() {
   const [freshnessLoading, setFreshnessLoading] = useState(false);
   const [freshnessError, setFreshnessError] = useState("");
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [ratingError, setRatingError] = useState("");
   const [knownRoasteries, setKnownRoasteries] = useState([]);
   const [showRoasteryDropdown, setShowRoasteryDropdown] = useState(false);
 
@@ -884,16 +899,22 @@ function CoffeeApp() {
 
   const submitRating = async () => {
     if (!pendingRating || !savedBeansId) return;
+    setRatingError("");
     try {
-      await fetch("/api/rate", {
+      const response = await fetch("/api/rate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ beansId: savedBeansId, roasteryId: savedRoasteryId, rating: pendingRating, comment: ratingComment })
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setRatingError(data.error || "فشل إرسال التقييم");
+        return;
+      }
       setRatingSubmitted(true);
       fetchComments(savedBeansId);
     } catch (e) {
-      console.error("rating failed", e);
+      setRatingError("حدث خطأ أثناء إرسال التقييم");
     }
   };
 
@@ -963,11 +984,11 @@ function CoffeeApp() {
         </div>
       )}
 
-      <div className="ca-eyebrow">الإصدار {APP_VERSION}</div>
       <div className="ca-title-row">
         <h1 className="ca-title">مُــهـل</h1>
         <MugLoader className="mug-loader-brand" label="مُــهـل" />
       </div>
+      <div className="ca-sub">سهّلنا عليك وصفة قهوتك — كل كيس له طريقته.</div>
 
       <div className="ca-temp-select">
         <div className="ca-temp-label">طريقة التحضير</div>
@@ -1147,29 +1168,38 @@ function CoffeeApp() {
 
             <div className="ca-rating-block">
               <div className="ca-rating-label">قيّم كوبك</div>
-              <div className="ca-rating-row">
-                <div className="ca-stars">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <span
-                      key={n}
-                      className={`ca-star ${n <= pendingRating ? "filled" : ""}`}
-                      onClick={() => setPendingRating(n)}
-                    >★</span>
-                  ))}
+              {!user ? (
+                <div style={{ fontSize: 13, color: "#6b5a4a" }}>
+                  <button className="ca-account-link" onClick={() => { setShowAuthModal(true); setAuthMode("login"); setAuthError(""); }}>سجّل دخولك</button> عشان تقدر تقيّم وتعلّق
                 </div>
-                <button className="ca-btn small" onClick={submitRating} disabled={!pendingRating}>إرسال التقييم</button>
-              </div>
-              {pendingRating > 0 && !ratingSubmitted && (
-                <textarea
-                  className="ca-text-input"
-                  style={{ width: "100%", marginTop: 10, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
-                  placeholder="أضف تعليق (اختياري)"
-                  value={ratingComment}
-                  onChange={(e) => setRatingComment(e.target.value)}
-                  maxLength={500}
-                />
+              ) : (
+                <>
+                  <div className="ca-rating-row">
+                    <div className="ca-stars">
+                      {[1, 2, 3, 4, 5].map(n => (
+                        <span
+                          key={n}
+                          className={`ca-star ${n <= pendingRating ? "filled" : ""}`}
+                          onClick={() => setPendingRating(n)}
+                        >★</span>
+                      ))}
+                    </div>
+                    <button className="ca-btn small" onClick={submitRating} disabled={!pendingRating}>إرسال التقييم</button>
+                  </div>
+                  {pendingRating > 0 && !ratingSubmitted && (
+                    <textarea
+                      className="ca-text-input"
+                      style={{ width: "100%", marginTop: 10, minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
+                      placeholder="أضف تعليق (اختياري)"
+                      value={ratingComment}
+                      onChange={(e) => setRatingComment(e.target.value)}
+                      maxLength={500}
+                    />
+                  )}
+                  {ratingError && <div className="ca-modal-error" style={{ marginTop: 8 }}>{ratingError}</div>}
+                  {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
+                </>
               )}
-              {ratingSubmitted && <div className="ca-rating-thanks">شكرًا لتقييمك! ☕</div>}
 
               {productComments.length > 0 && (
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed var(--line)" }}>
@@ -1244,7 +1274,7 @@ function CoffeeApp() {
               </div>
 
               <div className="ca-fresh-block">
-                <div className="ca-rating-label">متى أفضل وقت لشرب هذا البن؟ (اختياري)</div>
+                <div className="ca-rating-label">متى أفضل وقت لشرب هذا البن؟</div>
                 <div style={{ fontSize: 12, color: "#8a7862", marginBottom: 10 }}>لو تاريخ التحميص مكتوب على الكيس، أدخله ونوضح لك ليش هذا التوقيت بالذات.</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
@@ -1264,9 +1294,27 @@ function CoffeeApp() {
                   <div style={{ marginTop: 12 }}>
                     <span className={`ca-fresh-status ${
                       freshnessResult.current_status === "لسه مبكر" ? "early" :
-                      freshnessResult.current_status === "بدأ يفقد نكهته" ? "late" : "peak"
+                      freshnessResult.current_status === "بدأ يفقد نكهته" ? "late" :
+                      freshnessResult.current_status === "بدأ يتراجع تدريجيًا" ? "declining" : "peak"
                     }`}>{freshnessResult.current_status} · يوم {freshnessResult.daysSinceRoast} من التحميص</span>
-                    <div style={{ fontSize: 13, lineHeight: 1.8, color: "#4a3b2c" }}>{freshnessResult.why}</div>
+
+                    <div className="ca-fresh-bar-wrap">
+                      <div className="ca-fresh-arrow" style={{ right: `${freshnessResult.bar_position}%` }}>▼</div>
+                      <div className="ca-fresh-bar">
+                        <div className="ca-fresh-zone"></div>
+                        <div className="ca-fresh-zone"></div>
+                        <div className="ca-fresh-zone"></div>
+                        <div className="ca-fresh-zone"></div>
+                      </div>
+                      <div className="ca-fresh-bar-labels">
+                        <span>لسه مبكر</span>
+                        <span>بالنافذة المثلى</span>
+                        <span>بدأ يتراجع</span>
+                        <span>فقد نكهته</span>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 13, lineHeight: 1.8, color: "#4a3b2c", marginTop: 10 }}>{freshnessResult.why}</div>
                     <div style={{ fontSize: 11.5, color: "#8a7862", marginTop: 6 }}>النافذة المثلى المتوقعة: من يوم {freshnessResult.window_start_days} إلى يوم {freshnessResult.window_end_days} بعد التحميص</div>
                   </div>
                 )}
@@ -1394,6 +1442,7 @@ function CoffeeApp() {
       <div className="ca-disclaimer">
         {result?.confidence_note ? result.confidence_note : "هذا نموذج أولي — دقة النتائج تعتمد على وضوح الصورة والإضاءة."}
       </div>
+      <div className="ca-eyebrow" style={{ textAlign: "center", marginTop: 8 }}>الإصدار {APP_VERSION}</div>
 
       {showHistoryModal && (
         <div className="ca-modal-overlay" onClick={() => setShowHistoryModal(false)}>
