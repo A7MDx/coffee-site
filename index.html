@@ -1,4 +1,4 @@
-<!-- Version: 44 -->
+<!-- Version: 45 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -356,8 +356,8 @@
 
   /* بطاقة الوصفة القابلة للحفظ — القالب المعتمد */
   .rc-card {
-    width: 405px; height: 720px; background: #E6DECA; border-radius: 18px;
-    position: relative; overflow: hidden; padding: 44px 28px; box-sizing: border-box;
+    width: 405px; min-height: 720px; background: #E6DECA; border-radius: 18px;
+    position: relative; padding: 44px 28px; box-sizing: border-box;
     color: #3D4027; display: flex; flex-direction: column; font-family: 'Tajawal', sans-serif;
   }
   .rc-leaf-branch { position: absolute; top: -8px; left: -8px; width: 150px; height: 150px; z-index: 0; }
@@ -386,8 +386,8 @@
   .rc-divider-line { flex: 1; height: 1px; background: #575E40; opacity: 0.35; }
   .rc-divider-dot { width: 5px; height: 5px; background: #B36739; transform: rotate(45deg); margin: 0 8px; }
   .rc-section-title { font-size: 12px; font-weight: 700; color: #3D4027; text-align: right; margin-bottom: 10px; }
-  .rc-pours-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
-  .rc-pour-card { background: #F5F1DF; border-radius: 10px; padding: 10px 12px; text-align: center; min-width: 58px; }
+  .rc-pours-row { display: flex; justify-content: center; gap: 6px; margin-bottom: 6px; flex-wrap: nowrap; }
+  .rc-pour-card { background: #F5F1DF; border-radius: 10px; padding: 8px 6px; text-align: center; flex: 1 1 0; min-width: 0; max-width: 90px; }
   .rc-pour-num { width: 18px; height: 18px; border-radius: 50%; background: #3D4027; color: #E6DECA; font-size: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px; }
   .rc-pour-amt { font-size: 12px; font-weight: 700; color: #16180B; }
   .rc-pour-time { font-size: 9px; color: #575E40; margin-top: 3px; }
@@ -414,7 +414,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "26.12.16.05.03.44.09.03";
+const APP_VERSION = "26.12.16.05.03.45.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -569,9 +569,9 @@ function RecipeCard({ data, cardRef }) {
         <div className="rc-crop-info-row">
           <div className="rc-crop-cols">
             <div className="rc-crop-col rc-desc"><div className="rc-crop-col-value">{data.description || ""}</div></div>
-            <div className="rc-crop-col"><div className="rc-crop-col-label">الارتفاع</div><div className="rc-crop-col-value">{data.altitude ? `${data.altitude}م` : "—"}</div></div>
-            <div className="rc-crop-col"><div className="rc-crop-col-label">المعالجة</div><div className="rc-crop-col-value">{data.process || "—"}</div></div>
-            <div className="rc-crop-col"><div className="rc-crop-col-label">المحمصة</div><div className="rc-crop-col-value">{data.roastery_name && data.roastery_name.toLowerCase() !== "unknown" ? data.roastery_name : "—"}</div></div>
+            <div className="rc-crop-col"><div className="rc-crop-col-label">الارتفاع</div><div className="rc-crop-col-value">{data.altitude ? `${data.altitude}م` : "الارتفاع"}</div></div>
+            <div className="rc-crop-col"><div className="rc-crop-col-label">المعالجة</div><div className="rc-crop-col-value">{data.process && data.process.toLowerCase() !== "unknown" ? data.process : "المعالجة"}</div></div>
+            <div className="rc-crop-col"><div className="rc-crop-col-label">المحمصة</div><div className="rc-crop-col-value">{data.roastery_name && data.roastery_name.toLowerCase() !== "unknown" ? data.roastery_name : "المحمصة"}</div></div>
           </div>
         </div>
 
