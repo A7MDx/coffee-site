@@ -1,4 +1,4 @@
-<!-- Version: 43 -->
+<!-- Version: 44 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -9,6 +9,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body style="margin:0">
 <div id="coffee-app"></div>
@@ -349,12 +353,68 @@
     .mug-loader .hop, .mug-loader .leg-l, .mug-loader .leg-r,
     .mug-loader .shadow, .mug-loader .drop { animation-duration: 2.4s; }
   }
+
+  /* بطاقة الوصفة القابلة للحفظ — القالب المعتمد */
+  .rc-card {
+    width: 405px; height: 720px; background: #E6DECA; border-radius: 18px;
+    position: relative; overflow: hidden; padding: 44px 28px; box-sizing: border-box;
+    color: #3D4027; display: flex; flex-direction: column; font-family: 'Tajawal', sans-serif;
+  }
+  .rc-leaf-branch { position: absolute; top: -8px; left: -8px; width: 150px; height: 150px; z-index: 0; }
+  .rc-content { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; }
+  .rc-logo-block { text-align: center; margin-bottom: 14px; margin-top: -8px; }
+  .rc-logo-ar { font-family: 'Aref Ruqaa', serif; font-weight: 700; font-size: 34px; color: #3D4027; line-height: 1; }
+  .rc-logo-en { font-size: 9px; letter-spacing: 4px; color: #575E40; margin-top: 2px; }
+  .rc-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .rc-header-text { flex: 1; }
+  .rc-coffee-name { font-size: 17px; font-weight: 700; color: #16180B; margin-bottom: 6px; }
+  .rc-coffee-name .rc-origin { color: #16180B; }
+  .rc-coffee-name .rc-sep { color: #575E40; margin: 0 6px; font-weight: 400; }
+  .rc-crop-labels { font-size: 10.5px; color: #3D4027; font-weight: 700; margin-bottom: 8px; }
+  .rc-crop-labels span { margin: 0 4px; }
+  .rc-description { font-size: 10.5px; color: #3D4027; line-height: 1.6; max-width: 230px; opacity: 0.9; }
+  .rc-cup-badge-col { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 78px; }
+  .rc-badge { font-size: 10px; font-weight: 700; padding: 5px 12px; border-radius: 20px; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+  .rc-badge.hot { background: #E7D9B0; color: #6B4F1E; }
+  .rc-badge.cold { background: #C7D4CE; color: #2E5348; }
+  .rc-info-card { background: #F5F1DF; border-radius: 12px; padding: 14px 8px; margin: 16px 0 14px; display: flex; flex-direction: row-reverse; justify-content: space-between; }
+  .rc-info-cell { text-align: center; flex: 1; }
+  .rc-info-cell svg { width: 18px; height: 18px; margin-bottom: 4px; color: #3D4027; }
+  .rc-info-label { font-size: 9px; color: #3D4027; font-weight: 500; }
+  .rc-info-value { font-size: 13px; font-weight: 700; color: #16180B; margin-top: 2px; }
+  .rc-divider { display: flex; align-items: center; margin: 10px 0 10px; }
+  .rc-divider-line { flex: 1; height: 1px; background: #575E40; opacity: 0.35; }
+  .rc-divider-dot { width: 5px; height: 5px; background: #B36739; transform: rotate(45deg); margin: 0 8px; }
+  .rc-section-title { font-size: 12px; font-weight: 700; color: #3D4027; text-align: right; margin-bottom: 10px; }
+  .rc-pours-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+  .rc-pour-card { background: #F5F1DF; border-radius: 10px; padding: 10px 12px; text-align: center; min-width: 58px; }
+  .rc-pour-num { width: 18px; height: 18px; border-radius: 50%; background: #3D4027; color: #E6DECA; font-size: 10px; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px; }
+  .rc-pour-amt { font-size: 12px; font-weight: 700; color: #16180B; }
+  .rc-pour-time { font-size: 9px; color: #575E40; margin-top: 3px; }
+  .rc-flavor-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .rc-flavor-label { font-size: 10.5px; font-weight: 500; width: 54px; text-align: right; color: #3D4027; }
+  .rc-flavor-track { flex: 1; height: 6px; background: rgba(87,94,64,0.15); border-radius: 3px; overflow: hidden; }
+  .rc-flavor-fill { height: 100%; border-radius: 3px; }
+  .rc-crop-info-row { display: flex; align-items: flex-start; gap: 10px; padding-left: 4px; }
+  .rc-crop-cols { flex: 1; display: flex; flex-direction: row-reverse; justify-content: space-between; }
+  .rc-crop-col { text-align: center; flex: 1; padding: 0 3px; }
+  .rc-crop-col.rc-desc { flex: 1.4; margin-top: -7px; }
+  .rc-crop-col-label { font-size: 9.5px; font-weight: 700; color: #3D4027; }
+  .rc-crop-col-value { font-size: 9px; color: #3D4027; margin-top: 3px; opacity: 0.85; }
+  .rc-footer-wordmark { text-align: center; font-family: 'Aref Ruqaa', serif; font-size: 15px; color: #3D4027; margin-top: auto; padding-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .rc-footer-wordmark .rc-line { width: 24px; height: 1px; background: #575E40; opacity: 0.5; }
+  .rc-offscreen { position: fixed; top: -9999px; left: -9999px; z-index: -1; }
+  .rc-save-btn {
+    width: 100%; padding: 13px 16px; border: none; background: linear-gradient(135deg,#575E40,#3D4027);
+    color: #fff; font-family: inherit; font-size: 14px; font-weight: 700; border-radius: 3px; cursor: pointer; margin-top: 10px;
+  }
+  .rc-save-btn:disabled { opacity: .6; cursor: not-allowed; }
 </style>
 <script type="text/babel">
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "25.12.16.05.03.43.09.03";
+const APP_VERSION = "26.12.16.05.03.44.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -372,6 +432,153 @@ const GRINDERS = {
 // نستخدم <span dir="ltr"> عشان الأرقام ما تنعكس بصريًا داخل سياق الصفحة RTL.
 function CupAmount({ n }) {
   return <span><span dir="ltr" style={{ unicodeBidi: "isolate" }}>{300 * n}-{280 * n}</span> مل</span>;
+}
+
+const ORIGIN_AR = {
+  ethiopia: "إثيوبيا", colombia: "كولومبيا", brazil: "البرازيل", kenya: "كينيا",
+  guatemala: "غواتيمالا", honduras: "هندوراس", "costa rica": "كوستاريكا",
+  panama: "بنما", rwanda: "رواندا", burundi: "بوروندي", yemen: "اليمن",
+  indonesia: "إندونيسيا", "el salvador": "السلفادور", peru: "بيرو",
+  mexico: "المكسيك", nicaragua: "نيكاراغوا", unknown: ""
+};
+function originArabic(origin) {
+  if (!origin) return "";
+  return ORIGIN_AR[origin.trim().toLowerCase()] || origin;
+}
+
+// بطاقة الوصفة القابلة للحفظ — قالب ثابت الهوية، البيانات وحدها تتغيّر (محصول، حار/بارد، الأرقام)
+function RecipeCard({ data, cardRef }) {
+  const isCold = data.savedTempChoice === "cold" || data.tempChoiceUsed === "cold";
+  const pours = data.pours_breakdown || [];
+  const flavors = data.sensory || {};
+  const originText = originArabic(data.origin);
+  const nameText = data.coffee_type || "";
+  const parseNum = (str) => { const m = String(str || "").match(/[\d.]+/); return m ? parseFloat(m[0]) : null; };
+  const gramsNum = parseNum(data.amount_grams);
+  const ratioParts = String(data.brew_ratio || "").split(":");
+  const ratioNum = ratioParts.length === 2 ? parseNum(ratioParts[1]) : null;
+  const waterMl = gramsNum && ratioNum ? Math.round(gramsNum * ratioNum) : null;
+
+  return (
+    <div className="rc-card" ref={cardRef}>
+      <svg className="rc-leaf-branch" viewBox="0 0 150 150" fill="none">
+        <path d="M18 132 C 10 100, 14 62, 48 30" stroke="#575E40" strokeWidth="2" fill="none" strokeLinecap="round"/>
+        <path d="M26 88 C 34 78, 52 74, 64 80" stroke="#575E40" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
+        <ellipse cx="46" cy="42" rx="10" ry="24" fill="#57673F" transform="rotate(-40 46 42)"/>
+        <path d="M46 22 L46 62" stroke="#3F4E2C" strokeWidth="0.8" opacity="0.55" transform="rotate(-40 46 42)"/>
+        <ellipse cx="60" cy="66" rx="9" ry="22" fill="#6B7A52" transform="rotate(-18 60 66)"/>
+        <path d="M60 48 L60 84" stroke="#4A5537" strokeWidth="0.8" opacity="0.5" transform="rotate(-18 60 66)"/>
+        <ellipse cx="24" cy="62" rx="9" ry="22" fill="#4E5C39" transform="rotate(-62 24 62)"/>
+        <ellipse cx="30" cy="100" rx="8.5" ry="20" fill="#6B7A52" transform="rotate(-78 30 100)"/>
+        <ellipse cx="14" cy="110" rx="7.5" ry="18" fill="#57673F" transform="rotate(-95 14 110)"/>
+        <g fill="#F3ECDD">
+          <circle cx="44" cy="20" r="4.2"/><circle cx="52" cy="14" r="3.4"/><circle cx="36" cy="16" r="3"/>
+        </g>
+        <g fill="#B36739"><circle cx="44" cy="20" r="1.4"/><circle cx="52" cy="14" r="1.1"/></g>
+      </svg>
+
+      <div className="rc-content">
+        <div className="rc-logo-block">
+          <div className="rc-logo-ar">مُـهـل</div>
+          <div className="rc-logo-en">MOHL</div>
+        </div>
+
+        <div className="rc-header-row">
+          <div className="rc-header-text">
+            <div className="rc-coffee-name">
+              <span className="rc-origin">{originText}</span>
+              <span className="rc-sep">|</span>{nameText}
+            </div>
+            <div className="rc-crop-labels"><span>المحمصة</span>·<span>المعالجة</span>·<span>الارتفاع</span></div>
+            <div className="rc-description">{data.description || ""}</div>
+          </div>
+          <div className="rc-cup-badge-col">
+            {isCold ? (
+              <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+                <path d="M13 15 h20 l-2.5 23 a4 4 0 0 1-4 3.5 h-7 a4 4 0 0 1-4-3.5 Z" fill="#EAF1EC" stroke="#3D4027" strokeWidth="2"/>
+                <rect x="17" y="20" width="4.3" height="4.3" rx="1" fill="#F5F1DF" stroke="#3D4027" strokeWidth="1" transform="rotate(-8 19 22)"/>
+                <rect x="24" y="23" width="4.3" height="4.3" rx="1" fill="#F5F1DF" stroke="#3D4027" strokeWidth="1" transform="rotate(12 26 25)"/>
+                <rect x="18" y="29" width="4.3" height="4.3" rx="1" fill="#F5F1DF" stroke="#3D4027" strokeWidth="1" transform="rotate(20 20 31)"/>
+                <ellipse cx="15" cy="28" rx="2.4" ry="1.6" fill="#5A3A1E" transform="rotate(-30 15 28)"/>
+                <path d="M27 6 L22 15 L26 15 L21 24" stroke="#3D4027" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="46" height="46" viewBox="0 0 46 46" fill="none">
+                <path d="M18 8 C16 12, 19 15, 17 19" stroke="#B36739" strokeWidth="2" strokeLinecap="round" fill="none"/>
+                <path d="M24 6 C22 10, 25 14, 23 18" stroke="#B36739" strokeWidth="2" strokeLinecap="round" fill="none"/>
+                <path d="M10 20 h22 v11 a11 11 0 0 1 -11 11 h0 a11 11 0 0 1 -11 -11 Z" fill="#F5F1DF" stroke="#3D4027" strokeWidth="2"/>
+                <path d="M32 24 h5 a4 4 0 0 1 0 8 h-5" fill="none" stroke="#3D4027" strokeWidth="2"/>
+                <path d="M13 23 h16 v4 h-16 Z" fill="#8B5A2B"/>
+              </svg>
+            )}
+            <span className={`rc-badge ${isCold ? "cold" : "hot"}`}>{isCold ? "وصفة باردة" : "وصفة حارة"}</span>
+          </div>
+        </div>
+
+        <div className="rc-info-card">
+          <div className="rc-info-cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h12l-2 14a4 4 0 0 1-4 4h0a4 4 0 0 1-4-4Z"/></svg>
+            <div className="rc-info-label">الأكواب</div>
+            <div className="rc-info-value">{data.cupCountUsed || 1} كوب</div>
+          </div>
+          <div className="rc-info-cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M6 18 18 6"/></svg>
+            <div className="rc-info-label">النسبة</div>
+            <div className="rc-info-value">{data.brew_ratio}</div>
+          </div>
+          <div className="rc-info-cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3v10a3 3 0 1 1-2 0V3Z"/></svg>
+            <div className="rc-info-label">الحرارة</div>
+            <div className="rc-info-value">{data.temperature_c}°</div>
+          </div>
+          <div className="rc-info-cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2c4 6 6 9 6 12a6 6 0 0 1-12 0c0-3 2-6 6-12Z"/></svg>
+            <div className="rc-info-label">الماء</div>
+            <div className="rc-info-value">{waterMl ? `${waterMl} مل` : "—"}</div>
+          </div>
+          <div className="rc-info-cell">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3v10a6 6 0 0 0 12 0V3"/><path d="M6 8h12"/></svg>
+            <div className="rc-info-label">كمية البن</div>
+            <div className="rc-info-value">{data.amount_grams}</div>
+          </div>
+        </div>
+
+        <div className="rc-divider"><div className="rc-divider-line"></div><div className="rc-divider-dot"></div><div className="rc-divider-line"></div></div>
+        <div className="rc-section-title">جدول الصبات</div>
+        <div className="rc-pours-row">
+          {pours.map((p, i) => (
+            <div className="rc-pour-card" key={i}>
+              <div className="rc-pour-num">{i + 1}</div>
+              <div className="rc-pour-amt">{p.amount}</div>
+              <div className="rc-pour-time">{p.time}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rc-divider"><div className="rc-divider-line"></div><div className="rc-divider-dot"></div><div className="rc-divider-line"></div></div>
+        <div className="rc-section-title">النكهات المتوقعة</div>
+        <div className="rc-info-card" style={{ display: "block", padding: "14px 12px" }}>
+          <div className="rc-flavor-row"><div className="rc-flavor-label">الحموضة</div><div className="rc-flavor-track"><div className="rc-flavor-fill" style={{ width: `${flavors.acidity || 0}%`, background: "#575E40" }}></div></div></div>
+          <div className="rc-flavor-row"><div className="rc-flavor-label">الحلاوة</div><div className="rc-flavor-track"><div className="rc-flavor-fill" style={{ width: `${flavors.sweetness || 0}%`, background: "#B36739" }}></div></div></div>
+          <div className="rc-flavor-row"><div className="rc-flavor-label">القوام</div><div className="rc-flavor-track"><div className="rc-flavor-fill" style={{ width: `${flavors.body || 0}%`, background: "#8B7A52" }}></div></div></div>
+          <div className="rc-flavor-row" style={{ marginBottom: 0 }}><div className="rc-flavor-label">المرارة</div><div className="rc-flavor-track"><div className="rc-flavor-fill" style={{ width: `${flavors.bitterness || 0}%`, background: "#575E40" }}></div></div></div>
+        </div>
+
+        <div className="rc-divider"><div className="rc-divider-line"></div><div className="rc-divider-dot"></div><div className="rc-divider-line"></div></div>
+        <div className="rc-section-title">معلومات المحصول</div>
+        <div className="rc-crop-info-row">
+          <div className="rc-crop-cols">
+            <div className="rc-crop-col rc-desc"><div className="rc-crop-col-value">{data.description || ""}</div></div>
+            <div className="rc-crop-col"><div className="rc-crop-col-label">الارتفاع</div><div className="rc-crop-col-value">{data.altitude ? `${data.altitude}م` : "—"}</div></div>
+            <div className="rc-crop-col"><div className="rc-crop-col-label">المعالجة</div><div className="rc-crop-col-value">{data.process || "—"}</div></div>
+            <div className="rc-crop-col"><div className="rc-crop-col-label">المحمصة</div><div className="rc-crop-col-value">{data.roastery_name && data.roastery_name.toLowerCase() !== "unknown" ? data.roastery_name : "—"}</div></div>
+          </div>
+        </div>
+
+        <div className="rc-footer-wordmark"><div className="rc-line"></div>مُهل<div className="rc-line"></div></div>
+      </div>
+    </div>
+  );
 }
 
 // تصنيف قيمة المنزلق (0-100) لأربع مناطق نوعية
@@ -497,6 +704,46 @@ function CoffeeApp() {
   const [sliders, setSliders] = useState(null); // يبدأ بنفس القيم الأصلية من sensory
   const [originalSensory, setOriginalSensory] = useState(null); // الأساس الثابت الدائم — ما يتغير أبدًا حتى بعد التحسين
   const [refining, setRefining] = useState(false);
+  const rcCardRef = useRef(null);
+  const [savingCard, setSavingCard] = useState(false);
+  const [saveCardError, setSaveCardError] = useState("");
+
+  const saveRecipeCard = async () => {
+    if (!rcCardRef.current || !window.html2canvas) {
+      setSaveCardError("تعذّر تجهيز الصورة، جرّب مرة أخرى");
+      return;
+    }
+    setSavingCard(true);
+    setSaveCardError("");
+    try {
+      // ننتظر لحظة بسيطة عشان الخطوط تكون محمّلة كاملة قبل التصوير
+      await document.fonts.ready;
+      const canvas = await window.html2canvas(rcCardRef.current, {
+        scale: 1080 / 405, // يطلع بدقة 1080×1920 تقريبًا زي المطلوب لستوريز الجوال
+        backgroundColor: "#E6DECA",
+        useCORS: true
+      });
+      canvas.toBlob((blob) => {
+        if (!blob) { setSaveCardError("فشل إنشاء الصورة"); setSavingCard(false); return; }
+        const fileName = `مهل-${(result && result.coffee_type) || "وصفة"}.png`;
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], fileName, { type: "image/png" })] })) {
+          const file = new File([blob], fileName, { type: "image/png" });
+          navigator.share({ files: [file], title: "مُهل" }).catch(() => {});
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = fileName;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 4000);
+        }
+        setSavingCard(false);
+      }, "image/png");
+    } catch (e) {
+      console.error("save card failed", e);
+      setSaveCardError("حدث خطأ أثناء تجهيز الصورة");
+      setSavingCard(false);
+    }
+  };
   const [refineError, setRefineError] = useState("");
   const [comparison, setComparison] = useState(null); // { original, refined }
   const photoInputRef = useRef(null);
@@ -992,7 +1239,9 @@ function CoffeeApp() {
             roast_level: result.roast_level,
             origin: result.origin,
             process: result.process,
-            roastery_name: result.roastery_name
+            roastery_name: result.roastery_name,
+            altitude: result.altitude,
+            description: result.description
           },
           originalRecipe: result,
           targetSensory: sliders,
@@ -1103,6 +1352,11 @@ function CoffeeApp() {
             )}
             <div className="ca-ticket-label">النوع والتحميص</div>
             <div className="ca-ticket-name">{result.coffee_type}</div>
+
+            <button className="rc-save-btn" onClick={saveRecipeCard} disabled={savingCard}>
+              {savingCard ? "جارٍ التجهيز..." : "📸 احفظ بالاستوديو"}
+            </button>
+            {saveCardError && <div className="ca-status error" style={{ padding: "8px 0 0" }}>{saveCardError}</div>}
 
             <div className="ca-metrics">
               <div className="ca-metric">
@@ -1561,6 +1815,12 @@ function CoffeeApp() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {result && (
+        <div className="rc-offscreen">
+          <RecipeCard data={{ ...result, cupCountUsed: cupCount, tempChoiceUsed: temp }} cardRef={rcCardRef} />
         </div>
       )}
 
