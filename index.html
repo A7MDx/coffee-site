@@ -1,4 +1,4 @@
-<!-- Version: 45 -->
+<!-- Version: 46 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -357,7 +357,7 @@
   /* بطاقة الوصفة القابلة للحفظ — القالب المعتمد */
   .rc-card {
     width: 405px; min-height: 720px; background: #E6DECA; border-radius: 18px;
-    position: relative; padding: 44px 28px; box-sizing: border-box;
+    position: relative; padding: 40px 28px 30px; box-sizing: border-box;
     color: #3D4027; display: flex; flex-direction: column; font-family: 'Tajawal', sans-serif;
   }
   .rc-leaf-branch { position: absolute; top: -8px; left: -8px; width: 150px; height: 150px; z-index: 0; }
@@ -382,9 +382,9 @@
   .rc-info-cell svg { width: 18px; height: 18px; margin-bottom: 4px; color: #3D4027; }
   .rc-info-label { font-size: 9px; color: #3D4027; font-weight: 500; }
   .rc-info-value { font-size: 13px; font-weight: 700; color: #16180B; margin-top: 2px; }
-  .rc-divider { display: flex; align-items: center; margin: 10px 0 10px; }
+  .rc-divider { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin: 10px 0; }
   .rc-divider-line { flex: 1; height: 1px; background: #575E40; opacity: 0.35; }
-  .rc-divider-dot { width: 5px; height: 5px; background: #B36739; transform: rotate(45deg); margin: 0 8px; }
+  .rc-divider-dot { width: 5px; height: 5px; background: #B36739; transform: rotate(45deg); margin: 0 10px; }
   .rc-section-title { font-size: 12px; font-weight: 700; color: #3D4027; text-align: right; margin-bottom: 10px; }
   .rc-pours-row { display: flex; justify-content: center; gap: 6px; margin-bottom: 6px; flex-wrap: nowrap; }
   .rc-pour-card { background: #F5F1DF; border-radius: 10px; padding: 8px 6px; text-align: center; flex: 1 1 0; min-width: 0; max-width: 90px; }
@@ -401,7 +401,7 @@
   .rc-crop-col.rc-desc { flex: 1.4; margin-top: -7px; }
   .rc-crop-col-label { font-size: 9.5px; font-weight: 700; color: #3D4027; }
   .rc-crop-col-value { font-size: 9px; color: #3D4027; margin-top: 3px; opacity: 0.85; }
-  .rc-footer-wordmark { text-align: center; font-family: 'Aref Ruqaa', serif; font-size: 15px; color: #3D4027; margin-top: auto; padding-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .rc-footer-wordmark { text-align: center; font-family: 'Aref Ruqaa', serif; font-size: 15px; color: #3D4027; margin-top: 18px; padding-top: 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
   .rc-footer-wordmark .rc-line { width: 24px; height: 1px; background: #575E40; opacity: 0.5; }
   .rc-offscreen { position: fixed; top: -9999px; left: -9999px; z-index: -1; }
   .rc-save-btn {
@@ -414,7 +414,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "26.12.16.05.03.45.09.03";
+const APP_VERSION = "26.12.16.05.03.46.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -536,6 +536,13 @@ function RecipeCard({ data, cardRef }) {
             <div className="rc-info-label">الماء</div>
             <div className="rc-info-value">{waterMl ? `${waterMl} مل` : "—"}</div>
           </div>
+          {isCold && data.ice_amount && (
+            <div className="rc-info-cell">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2 L12 22 M4 7 L20 17 M20 7 L4 17"/></svg>
+              <div className="rc-info-label">كمية الثلج</div>
+              <div className="rc-info-value">{data.ice_amount}</div>
+            </div>
+          )}
           <div className="rc-info-cell">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3v10a6 6 0 0 0 12 0V3"/><path d="M6 8h12"/></svg>
             <div className="rc-info-label">كمية البن</div>
