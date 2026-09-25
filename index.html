@@ -1,4 +1,4 @@
-<!-- Version: 47 -->
+<!-- Version: 49 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -77,6 +77,17 @@
   .ca-divider { border: none; border-top: 1px solid var(--line); margin: 26px 0 20px; }
 
   .ca-cup-select { margin-bottom: 20px; }
+  .ca-cupsize-block { background: var(--card-light); border-radius: 8px; padding: 12px; margin-bottom: 18px; }
+  .ca-cupsize-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .ca-cupsize-row:last-of-type { margin-bottom: 10px; }
+  .ca-cupsize-btn {
+    flex: 1; padding: 10px 6px; border: 1.5px solid var(--line); border-radius: 6px; background: #fff;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .ca-cupsize-btn.active { border-color: var(--gold); background: var(--hot); color: var(--hot-text); }
+  .ca-cupsize-oz { font-size: 10px; font-weight: 400; opacity: 0.75; }
+  .ca-cupsize-hint { font-size: 11.5px; color: var(--ink); text-align: center; line-height: 1.6; opacity: 0.85; }
   .ca-cup-label { font-size: 13px; color: #6b5a4a; margin-bottom: 10px; }
   .ca-cup-options { display: flex; gap: 8px; }
   .ca-cup-btn {
@@ -418,7 +429,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "26.12.16.05.03.47.09.03";
+const APP_VERSION = "28.12.16.05.03.49.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -436,6 +447,49 @@ const GRINDERS = {
 // نستخدم <span dir="ltr"> عشان الأرقام ما تنعكس بصريًا داخل سياق الصفحة RTL.
 function CupAmount({ n }) {
   return <span><span dir="ltr" style={{ unicodeBidi: "isolate" }}>{300 * n}-{280 * n}</span> مل</span>;
+}
+
+// مقاسات الكوب — كل رقم مل مقرّب لأعلى لرقم "نظيف"، حسب طلب صريح (9أونصة=260، 10=300، 12=360)
+const CUP_SIZES = {
+  small: { label: "صغير", oz: 9, ml: 260 },
+  medium: { label: "متوسط", oz: 10, ml: 300 },
+  large: { label: "كبير", oz: 12, ml: 360 }
+};
+function targetWaterMl(count, size) {
+  return (CUP_SIZES[size] ? CUP_SIZES[size].ml : CUP_SIZES.medium.ml) * count;
+}
+
+// اختيار الكوب: كمية + حجم، مع توضيح المكافئ بالمل — يستخدم بالصفحة الأولى وبقسم التعديل
+function CupSizeSelector({ cupCount, setCupCount, cupSize, setCupSize }) {
+  const perCup = CUP_SIZES[cupSize].ml;
+  const total = targetWaterMl(cupCount, cupSize);
+  const countLabel = cupCount === 1 ? "كوب" : cupCount === 2 ? "كوبين" : "٣ أكواب";
+  return (
+    <div className="ca-cupsize-block">
+      <div className="ca-cupsize-row">
+        {[1, 2, 3].map(n => (
+          <button key={n} className={`ca-cupsize-btn ${cupCount === n ? "active" : ""}`} onClick={() => setCupCount(n)}>
+            {n === 1 ? "كوب" : n === 2 ? "كوبين" : "٣ أكواب"}
+          </button>
+        ))}
+      </div>
+      <div className="ca-cupsize-row">
+        {Object.entries(CUP_SIZES).map(([key, s]) => (
+          <button key={key} className={`ca-cupsize-btn ca-cupsize-size ${cupSize === key ? "active" : ""}`} onClick={() => setCupSize(key)}>
+            {s.label}
+            <span className="ca-cupsize-oz">{s.oz} أونصة · {s.ml} مل</span>
+          </button>
+        ))}
+      </div>
+      <div className="ca-cupsize-hint">
+        {cupCount === 1 ? (
+          <>كوب واحد ({CUP_SIZES[cupSize].oz} أونصة) = <b>{perCup} مل</b> تقريبًا</>
+        ) : (
+          <>{countLabel} × {perCup} مل = <b>{total} مل</b> إجمالي تقريبًا</>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const ORIGIN_AR = {
@@ -682,6 +736,7 @@ function MugLoader({ className = "", label = "جارٍ التحليل" }) {
 
 function CoffeeApp() {
   const [cupCount, setCupCount] = useState(1);
+  const [cupSize, setCupSize] = useState("medium"); // small | medium | large
   const [temp, setTemp] = useState("hot");
   const [tempWarning, setTempWarning] = useState(false);
   const [grinderMode, setGrinderMode] = useState("list");
@@ -989,8 +1044,8 @@ function CoffeeApp() {
   };
 
   // خطوة واحدة من منظور العميل: يتعرف على المحصول ثم يبني الوصفة مباشرة
-  // (بكوب واحد افتراضيًا وبدون طاحونة محددة) — يقدر يعدّل الأكواب والطاحونة
-  // بعدين من داخل النتيجة نفسها ويضغط "تحديث".
+  // باستخدام اختياراته الفعلية (حجم/عدد الكوب والطاحونة) اللي حددها بالصفحة
+  // الأولى — يقدر يعدّلهم بعدين من داخل النتيجة ويضغط "تحديث".
   const identifyAndBuildRecipe = async (dataUrl) => {
     setStatus("identifying");
     setErrMsg("");
@@ -1007,14 +1062,16 @@ function CoffeeApp() {
       }
       const idData = await idResponse.json();
       setIdentifyResult(idData);
-      setCupCount(1);
-      setGrinderMode("none");
 
       setStatus("computing");
       const recResponse = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "recipe", beanProfile: idData, tempChoice: temp, grinderInfo: null, cupCount: 1 })
+        body: JSON.stringify({
+          mode: "recipe", beanProfile: idData, tempChoice: temp,
+          grinderInfo: grinderInfoLabel || null, cupCount, cupSize,
+          targetWaterMl: targetWaterMl(cupCount, cupSize)
+        })
       });
       if (!recResponse.ok) {
         const errBody = await recResponse.json().catch(() => ({}));
@@ -1088,7 +1145,8 @@ function CoffeeApp() {
           beanProfile: identifyResult,
           tempChoice: temp,
           grinderInfo: grinderInfoLabel || null,
-          cupCount
+          cupCount, cupSize,
+          targetWaterMl: targetWaterMl(cupCount, cupSize)
         })
       });
       if (!response.ok) {
@@ -1319,6 +1377,44 @@ function CoffeeApp() {
         </div>
         {tempWarning && <div className="ca-temp-warning">اختار نوع التحضير أول</div>}
       </div>
+
+      {status === "idle" && (
+        <>
+          <CupSizeSelector cupCount={cupCount} setCupCount={setCupCount} cupSize={cupSize} setCupSize={setCupSize} />
+
+          <div className="ca-grinder-select">
+            <div className="ca-grinder-hint">طاحونتك (اختياري)</div>
+            <div className="ca-grinder-modes">
+              <button className={`ca-grinder-mode-btn ${grinderMode === "list" ? "active" : ""}`} onClick={() => { setGrinderMode("list"); setGrinderWarning(false); }}>اختر من القائمة</button>
+              <button className={`ca-grinder-mode-btn ${grinderMode === "custom" ? "active" : ""}`} onClick={() => { setGrinderMode("custom"); setGrinderWarning(false); }}>اكتب اسمها</button>
+              <button className={`ca-grinder-mode-btn ${grinderMode === "none" ? "active" : ""}`} onClick={() => { setGrinderMode("none"); setGrinderWarning(false); }}>بدون تحديد</button>
+            </div>
+            {grinderMode === "list" && (
+              <div className="ca-grinder-fields" style={{ marginTop: 10 }}>
+                <select className="ca-select" value={grinderBrand} onChange={(e) => { setGrinderBrand(e.target.value); setGrinderModel(""); setGrinderWarning(false); }}>
+                  <option value="">الشركة المصنعة</option>
+                  {Object.keys(GRINDERS).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <select className="ca-select" value={grinderModel} onChange={(e) => { setGrinderModel(e.target.value); setGrinderWarning(false); }} disabled={!grinderBrand}>
+                  <option value="">الموديل</option>
+                  {(GRINDERS[grinderBrand] || []).map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            )}
+            {grinderMode === "custom" && (
+              <input
+                className="ca-text-input"
+                type="text"
+                placeholder="اكتب اسم الشركة، الموديل، وعدد درجات الطحن"
+                value={grinderCustom}
+                onChange={(e) => setGrinderCustom(e.target.value)}
+                style={{ width: "100%", marginTop: 10 }}
+              />
+            )}
+            {grinderWarning && <div className="ca-grinder-warning">اختر طاحونتك من القائمة، أو اختر "بدون تحديد"</div>}
+          </div>
+        </>
+      )}
 
       {captured && (
         <div className="ca-stage">
@@ -1551,15 +1647,7 @@ function CoffeeApp() {
                   </div>
                 </div>
 
-                <div className="ca-cup-label">كم كوب؟</div>
-                <div className="ca-cup-options" style={{ marginBottom: 14 }}>
-                  {[1, 2, 3].map(n => (
-                    <button key={n} className={`ca-cup-btn ${cupCount === n ? "active" : ""}`} onClick={() => setCupCount(n)}>
-                      <div className="ca-cup-emoji">{"☕️".repeat(n)}</div>
-                      <div className="ca-cup-amount"><CupAmount n={n} /></div>
-                    </button>
-                  ))}
-                </div>
+                <CupSizeSelector cupCount={cupCount} setCupCount={setCupCount} cupSize={cupSize} setCupSize={setCupSize} />
 
                 <div className="ca-grinder-hint">طاحونتك (اختياري)</div>
                 <div className="ca-grinder-modes">
