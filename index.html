@@ -1,4 +1,4 @@
-<!-- Version: 50 -->
+<!-- Version: 51 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -17,6 +17,7 @@
 <body style="margin:0">
 <div id="coffee-app"></div>
 <style>
+  #coffee-app, #coffee-app *, #coffee-app *::before, #coffee-app *::after { box-sizing: border-box; }
   #coffee-app {
     --ink: #3D4027;
     --ink-darker: #16180B;
@@ -430,7 +431,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "28.12.16.05.03.50.09.03";
+const APP_VERSION = "28.12.16.05.03.51.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -475,7 +476,7 @@ function CupSizeSelector({ cupCount, setCupCount, cupSize, setCupSize }) {
         {Object.entries(CUP_SIZES).map(([key, s]) => (
           <button key={key} className={`ca-cupsize-btn ca-cupsize-size ${cupSize === key ? "active" : ""}`} onClick={() => setCupSize(key)}>
             {s.label}
-            <span className="ca-cupsize-oz">{s.oz} أونصة · {s.ml * cupCount} مل</span>
+            <span className="ca-cupsize-oz">{s.oz * cupCount} أونصة · {s.ml * cupCount} مل</span>
           </button>
         ))}
       </div>
