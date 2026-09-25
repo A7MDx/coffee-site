@@ -1,4 +1,4 @@
-<!-- Version: 51 -->
+<!-- Version: 52 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -431,7 +431,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "28.12.16.05.03.51.09.03";
+const APP_VERSION = "28.13.16.05.03.52.09.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -1099,7 +1099,7 @@ function CoffeeApp() {
     setOriginalSensory(parsed.sensory ? { ...parsed.sensory } : null);
     setStatus("done");
     setRecordedTemp(temp);
-    setRecordedCupCount(1);
+    setRecordedCupCount(cupCount);
 
     const roasteryForRecord =
       parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== ""
@@ -1181,6 +1181,7 @@ function CoffeeApp() {
           roastLevel: parsedResult.roast_level,
           roasteryName,
           tempChoice: temp,
+          cupCount: isCorrection ? null : cupCount,
           correction: isCorrection,
           previousBeansId: isCorrection ? savedBeansId : null,
           previousRoasteryId: isCorrection ? savedRoasteryId : null,

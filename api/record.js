@@ -1,4 +1,4 @@
-// Version: 12
+// Version: 13
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -14,6 +14,22 @@ const redis = new Redis({
   url: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
 });
+
+function getCookie(req, name) {
+  const raw = req.headers.cookie || "";
+  const match = raw.split(";").map(s => s.trim()).find(s => s.startsWith(`${name}=`));
+  return match ? match.split("=")[1] : null;
+}
+
+async function getRequesterRole(req) {
+  const token = getCookie(req, "mohal_session");
+  if (!token) return null;
+  const userId = await redis.get(`session:${token}`);
+  if (!userId) return null;
+  const user = await redis.hgetall(`user:${userId}`);
+  if (!user || !user.email) return null;
+  return user.role || "user";
+}
 
 const ORIGIN_ALIASES = {
   "colombia": "colombia", "كولومبيا": "colombia",
@@ -87,6 +103,17 @@ export default async function handler(req, res) {
   }
 
   try {
+    // تصفير عداد "عدد الأكواب" فقط (owner) — يُستخدم لما يتضح إن العداد تلوّث
+    // بخطأ برمجي سابق، بدون المساس بأي بُعد إحصائي تاني (محاصيل/محامص/تقييمات...)
+    if (req.body && req.body.action === "reset-cupcount") {
+      const role = await getRequesterRole(req);
+      if (role !== "owner") {
+        return res.status(403).json({ error: "غير مصرح" });
+      }
+      await redis.del("cupcount:all");
+      return res.status(200).json({ ok: true });
+    }
+
     // تصحيح إحصائيات حار/بارد وعدد الأكواب لما العميل يحدّث الوصفة (مو بحث جديد،
     // بس تعديل على نفس البحث) — ننقل العداد من القيمة القديمة للجديدة بدل ما نضيف
     if (req.body && req.body.action === "update-settings") {
