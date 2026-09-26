@@ -1,4 +1,4 @@
-// Version: 14
+// Version: 15
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -103,6 +103,29 @@ export default async function handler(req, res) {
   }
 
   try {
+    // تنظيف مؤقت لبيانات تجربة تشخيصية سويتها وقت اختبار ميزة حجم الكوب —
+    // يشيل هذا الجزء بعد الاستخدام، مو أداة دائمة زي البقية.
+    if (req.body && req.body.action === "cleanup-diagnostic-test") {
+      const role = await getRequesterRole(req);
+      if (role !== "owner") {
+        return res.status(403).json({ error: "غير مصرح" });
+      }
+      const testBeansId = "تجربة-تشخيصية-للحجم_تجربة-حجم-الكوب_ethiopia";
+      const testRoasteryId = "تجربة-تشخيصية-للحجم";
+      await Promise.all([
+        bumpCounter("beans", testBeansId, -1),
+        bumpCounter("roastery", testRoasteryId, -1),
+        bumpCounter("origin", "ethiopia", -1),
+        bumpCounter("process", "washed", -1),
+        bumpCounter("temp", "hot", -1),
+        bumpCounter("cupcount", "2", -1),
+        bumpCounter("cupsize", "large", -1),
+        redis.del(`beans_meta:${testBeansId}`),
+        redis.del(`roastery_meta:${testRoasteryId}`)
+      ]);
+      return res.status(200).json({ ok: true });
+    }
+
     // تصفير عداد "عدد الأكواب" فقط (owner) — يُستخدم لما يتضح إن العداد تلوّث
     // بخطأ برمجي سابق، بدون المساس بأي بُعد إحصائي تاني (محاصيل/محامص/تقييمات...)
     if (req.body && req.body.action === "reset-cupcount") {
