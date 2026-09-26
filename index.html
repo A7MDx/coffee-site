@@ -1,4 +1,4 @@
-<!-- Version: 59 -->
+<!-- Version: 60 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -31,9 +31,6 @@
     --hot-text: #6B4F1E;
     --cold: #C7D4CE;
     --cold-text: #2E5348;
-    --mug-a: #F5F1DF;
-    --mug-b: #B36739;
-    --coffee: #4A2F1F;
     font-family: 'Tajawal', 'Noto Naskh Arabic', sans-serif;
     background: var(--parchment);
     color: var(--ink);
@@ -51,7 +48,6 @@
   }
   .ca-title-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
   .ca-title { font-size: 27px; font-weight: 700; line-height: 1.3; margin: 0; }
-  .mug-loader-brand { width: 40px; height: 40px; overflow: visible; }
   .ca-sub { font-size: 14px; color: #6b5a4a; margin-bottom: 24px; line-height: 1.7; }
 
   .ca-stage {
@@ -327,48 +323,38 @@
   .ca-modal-switch button { color: var(--gold); background: none; border: none; font-family: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; padding: 0; }
   .ca-modal-close { position: absolute; top: 12px; left: 12px; }
 
-  /* Loading — mug */
+  /* Loading */
   .ca-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 0; }
   .ca-loading-text { font-size: 13px; color: #6b5a4a; }
-  .mug-loader { width: 92px; height: 92px; overflow: visible; display: block; }
 
-  .mug-loader .hop { transform-box: fill-box; transform-origin: 50% 100%; animation: mug-hop .9s ease-in-out infinite; }
-  @keyframes mug-hop {
-    0%   { transform: translateY(0) rotate(0deg); }
-    22%  { transform: translateY(-14px) rotate(-4deg); }
-    45%  { transform: translateY(0) rotate(0deg); }
-    68%  { transform: translateY(-14px) rotate(4deg); }
-    90%  { transform: translateY(0) rotate(0deg); }
-    100% { transform: translateY(0) rotate(0deg); }
-  }
-  .mug-loader .leg-l { transform-box: fill-box; transform-origin: 100% 0%; animation: leg-l-swing .9s ease-in-out infinite; }
-  .mug-loader .leg-r { transform-box: fill-box; transform-origin: 0% 0%; animation: leg-r-swing .9s ease-in-out infinite; }
-  @keyframes leg-l-swing { 0%,100% { transform: rotate(0deg); } 22% { transform: rotate(-16deg); } 45% { transform: rotate(10deg); } 68% { transform: rotate(-4deg); } }
-  @keyframes leg-r-swing { 0%,100% { transform: rotate(0deg); } 22% { transform: rotate(4deg); } 45% { transform: rotate(-10deg); } 68% { transform: rotate(16deg); } }
-
-  .mug-loader .shadow { transform-box: fill-box; transform-origin: 50% 50%; animation: mug-shadow .9s ease-in-out infinite; }
-  @keyframes mug-shadow {
-    0%   { transform: scaleX(1);    opacity: 0.4; }
-    22%  { transform: scaleX(0.72); opacity: 0.22; }
-    45%  { transform: scaleX(1);    opacity: 0.4; }
-    68%  { transform: scaleX(0.72); opacity: 0.22; }
-    100% { transform: scaleX(1);    opacity: 0.4; }
-  }
-
-  .mug-loader .drop { opacity: 0; animation: drop-fly 1.8s ease-out infinite; }
-  .mug-loader .drop.d2 { animation-delay: 0.6s; }
-  .mug-loader .drop.d3 { animation-delay: 1.2s; }
-  @keyframes drop-fly {
-    0%   { transform: translate(0, 0) scale(0.4); opacity: 0; }
-    8%   { opacity: 1; }
-    55%  { transform: translate(var(--dx, 6px), -46px) scale(1); opacity: 1; }
-    80%  { transform: translate(calc(var(--dx, 6px) * 1.4), -66px) scale(0.8); opacity: 0; }
-    100% { opacity: 0; transform: translate(calc(var(--dx, 6px) * 1.4), -66px) scale(0.8); }
-  }
-
+  /* التميمة الرسمية — بطة برسمة خطوط تمشي وترفع كوب القهوة */
+  .duck-mascot-brand { width: 46px; height: 46px; overflow: visible; display: block; }
+  .duck-mascot-loading { width: 96px; height: 96px; overflow: visible; display: block; }
+  .duck-stroke { fill: none; stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+  .duck-detail { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .duck-fill { fill: var(--ink); }
+  .duck-body { animation: duck-buoy 3.2s ease-in-out infinite; }
+  .duck-head { transform-origin: 341px 299px; animation: duck-look-up 3.2s ease-in-out infinite; }
+  .duck-arm { animation: duck-reach 3.2s ease-in-out infinite; }
+  .duck-back-thigh { transform-origin: 431px 513px; animation: duck-back-thigh 1.6s ease-in-out infinite; }
+  .duck-back-shin { transform-origin: 458px 576px; animation: duck-back-shin 1.6s ease-in-out infinite; }
+  .duck-back-foot { transform-origin: 477px 587px; animation: duck-back-foot 1.6s ease-in-out infinite; }
+  .duck-front-thigh { transform-origin: 366px 513px; animation: duck-front-thigh 1.6s ease-in-out infinite; }
+  .duck-front-shin { transform-origin: 337px 579px; animation: duck-front-shin 1.6s ease-in-out infinite; }
+  .duck-front-foot { transform-origin: 330px 599px; animation: duck-front-foot 1.6s ease-in-out infinite; }
+  @keyframes duck-buoy { 0%, 50%, 100% { transform: translateY(0); } 25%, 75% { transform: translateY(-2px); } }
+  @keyframes duck-look-up { 0%, 21%, 79%, 100% { transform: rotate(0); } 34%, 68% { transform: rotate(3deg); } }
+  @keyframes duck-reach { 0%, 21%, 79%, 100% { transform: translate(0,0); } 34%, 68% { transform: translate(15px,-100px); } }
+  @keyframes duck-front-thigh { 0%,100% { transform: rotate(7deg); } 25% { transform: rotate(-8deg); } 50% { transform: rotate(-13deg); } 75% { transform: rotate(1deg); } }
+  @keyframes duck-front-shin { 0%,100% { transform: rotate(-3deg); } 25% { transform: rotate(15deg); } 50% { transform: rotate(6deg); } 75% { transform: rotate(-8deg); } }
+  @keyframes duck-front-foot { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-13deg); } 50% { transform: rotate(3deg); } 75% { transform: rotate(7deg); } }
+  @keyframes duck-back-thigh { 0%,100% { transform: rotate(-10deg); } 25% { transform: rotate(1deg); } 50% { transform: rotate(9deg); } 75% { transform: rotate(-1deg); } }
+  @keyframes duck-back-shin { 0%,100% { transform: rotate(6deg); } 25% { transform: rotate(-10deg); } 50% { transform: rotate(-3deg); } 75% { transform: rotate(15deg); } }
+  @keyframes duck-back-foot { 0%,100% { transform: rotate(0); } 25% { transform: rotate(8deg); } 50% { transform: rotate(-5deg); } 75% { transform: rotate(-12deg); } }
   @media (prefers-reduced-motion: reduce) {
-    .mug-loader .hop, .mug-loader .leg-l, .mug-loader .leg-r,
-    .mug-loader .shadow, .mug-loader .drop { animation-duration: 2.4s; }
+    .duck-body, .duck-head, .duck-arm,
+    .duck-back-thigh, .duck-back-shin, .duck-back-foot,
+    .duck-front-thigh, .duck-front-shin, .duck-front-foot { animation: none; }
   }
 
   /* بطاقة الوصفة القابلة للحفظ — القالب المعتمد */
@@ -431,7 +417,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "30.16.16.05.03.59.11.03";
+const APP_VERSION = "30.16.16.05.03.60.11.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -696,32 +682,63 @@ function buildExplanation(preview) {
   return `${parts.join("، و")} لتعديل ${goalNames.join(" و")} مع الحفاظ على شخصية البن الأصلية.`;
 }
 
-function MugLoader({ className = "", label = "جارٍ التحليل" }) {
+// التميمة الرسمية — بطة برسمة خطوط تمشي وترفع كوب القهوة (استبدلت رسمة الكوب
+// المبتسم القديمة). نفس الرسمة تُستخدم كشعار ثابت وكصورة تحميل متحركة.
+function DuckMascot({ className = "", label = "مُــهـل" }) {
   return (
-    <svg className={`mug-loader ${className}`} viewBox="0 0 200 220" role="img" aria-label={label}>
-      <ellipse className="shadow" cx="100" cy="204" rx="34" ry="7" fill="var(--ink)" opacity="0.4"/>
-      <g className="hop">
-        <path className="leg-l" d="M88,176 L79,192 L70,201" fill="none" stroke="var(--ink)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
-        <path className="leg-r" d="M112,176 L121,192 L130,201" fill="none" stroke="var(--ink)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M62,92 C40,86 32,110 39,124 C45,136 62,135 65,122 L58,120 C56,127 47,127 44,120 C40,111 45,97 63,101 Z" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="5" strokeLinejoin="round"/>
-        <path d="M58,70 L58,150 Q58,165 74,165 L126,165 Q142,165 142,150 L142,70 Z" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="6" strokeLinejoin="round"/>
-        <path d="M78,72 C74,58 82,50 78,38 C90,44 90,60 82,72 Z" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="4.5" strokeLinejoin="round"/>
-        <path d="M104,70 C100,52 112,46 108,30 C122,38 120,58 112,70 Z" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="4.5" strokeLinejoin="round"/>
-        <ellipse cx="100" cy="70" rx="42" ry="15" fill="url(#mugGrad)" stroke="var(--ink)" strokeWidth="6"/>
-        <ellipse cx="100" cy="71" rx="32" ry="9.5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="3.5"/>
-        <circle cx="110" cy="122" r="4.6" fill="var(--ink)"/>
-        <circle cx="128" cy="122" r="4.6" fill="var(--ink)"/>
-        <path d="M112,136 Q119,144 126,136 Q119,140 112,136 Z" fill="#fff" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round"/>
+    <svg className={className} viewBox="0 0 768 768" role="img" aria-label={label}>
+      <g className="duck-back-thigh duck-stroke">
+        <path d="M431 507 Q439 535 458 576"/>
+        <g className="duck-back-shin">
+          <path d="M458 576 L472 582 L477 587"/>
+          <g className="duck-back-foot">
+            <path d="M477 587 Q481 591 480 598 L462 626 Q457 632 454 628 L456 609 L438 620 Q431 622 433 618 Q436 614 449 605 L467 583"/>
+          </g>
+        </g>
       </g>
-      <circle className="drop d1" style={{ "--dx": "-14px" }} cx="82" cy="55" r="4.5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
-      <circle className="drop d2" style={{ "--dx": "4px" }} cx="100" cy="48" r="5" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
-      <circle className="drop d3" style={{ "--dx": "18px" }} cx="118" cy="55" r="4" fill="var(--coffee)" stroke="var(--ink)" strokeWidth="2.5"/>
-      <defs>
-        <linearGradient id="mugGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--mug-a)"/>
-          <stop offset="1" stopColor="var(--mug-b)"/>
-        </linearGradient>
-      </defs>
+      <g className="duck-front-thigh duck-stroke">
+        <path d="M366 506 Q354 542 337 579"/>
+        <g className="duck-front-shin">
+          <path d="M337 579 L330 599"/>
+          <g className="duck-front-foot">
+            <path d="M330 599 Q326 609 316 609 L284 603 Q279 600 284 598 L302 600 L281 591 Q277 588 281 586 L302 590 L292 583 Q289 580 294 580 Q309 582 330 599"/>
+          </g>
+        </g>
+      </g>
+
+      <g className="duck-body">
+        <path className="duck-stroke" d="M365 276 C359 313 361 337 388 360 C411 380 456 391 488 412 C508 425 521 440 518 455 C515 471 496 490 469 504 C444 517 407 522 376 516 C335 511 309 490 301 457 C291 418 301 362 320 302"/>
+        <path className="duck-stroke" d="M495 415 Q500 390 524 378 Q536 370 531 385 Q526 402 503 418 Q530 403 550 409 Q557 412 547 421 Q527 437 513 430"/>
+        <path className="duck-detail" d="M412 401 Q456 401 494 459 Q474 474 445 471 Q396 470 377 425"/>
+        <path className="duck-detail" d="M439 435 Q467 436 494 459"/>
+
+        <g className="duck-head">
+          <path className="duck-stroke" d="M365 276 C370 244 374 207 368 177 C362 151 345 136 321 137 C292 137 274 155 274 184"/>
+          <path className="duck-stroke" d="M306 225 C330 233 334 249 326 281 L320 302"/>
+          <path className="duck-stroke" d="M277 200 C268 216 257 227 245 236 Q242 240 252 240 C275 239 296 231 306 219 Q310 212 300 205 Q291 201 277 200 Z"/>
+          <path className="duck-detail" d="M253 238 Q282 232 299 212"/>
+          <circle className="duck-fill" cx="274" cy="195" r="12"/>
+          <circle className="duck-fill" cx="308" cy="189" r="13"/>
+          <path className="duck-detail" d="M285 191 Q289 188 295 189 M320 186 L362 172 Q370 169 373 179"/>
+        </g>
+
+        <path className="duck-stroke" d="M297 385 Q279 387 267 378"/>
+        <path className="duck-stroke" d="M300 444 Q271 444 249 422"/>
+        <path className="duck-stroke" d="M267 378 Q266 369 261 362">
+          <animate attributeName="d" dur="3.2s" repeatCount="indefinite" values="M267 378 Q266 369 261 362;M267 378 Q266 369 261 362;M267 378 Q266 324 260 282;M267 378 Q266 324 260 282;M267 378 Q266 369 261 362;M267 378 Q266 369 261 362" keyTimes="0;0.21;0.34;0.68;0.79;1" calcMode="linear"/>
+        </path>
+        <path className="duck-stroke" d="M249 422 Q237 413 232 399">
+          <animate attributeName="d" dur="3.2s" repeatCount="indefinite" values="M249 422 Q237 413 232 399;M249 422 Q237 413 232 399;M249 422 Q229 360 233 299;M249 422 Q229 360 233 299;M249 422 Q237 413 232 399;M249 422 Q237 413 232 399" keyTimes="0;0.21;0.34;0.68;0.79;1" calcMode="linear"/>
+        </path>
+        <g className="duck-arm">
+          <path className="duck-stroke" d="M215 348 L216 341 L268 337 L274 345 L274 350 Z"/>
+          <path className="duck-detail" d="M224 339 L225 334 L233 334 M263 337 L267 332"/>
+          <path className="duck-stroke" d="M218 351 L230 414 Q232 420 242 420 L259 416 Q269 414 270 407 L271 352"/>
+          <path className="duck-detail" d="M222 365 Q246 370 270 362 M231 398 Q250 401 268 394"/>
+          <path className="duck-detail" d="M238 375 L239 393 M244 375 L245 394 M250 374 L251 393 M256 372 L257 391 M262 371 L263 390"/>
+          <path className="duck-stroke" d="M221 365 Q213 366 214 373 Q217 378 232 384 M220 378 Q211 378 213 386 Q216 393 235 397 M224 394 Q215 392 218 402 Q222 408 237 410"/>
+        </g>
+      </g>
     </svg>
   );
 }
@@ -1359,7 +1376,7 @@ function CoffeeApp() {
 
       <div className="ca-title-row">
         <h1 className="ca-title">مُــهـل</h1>
-        <MugLoader className="mug-loader-brand" label="مُــهـل" />
+        <DuckMascot className="duck-mascot-brand" label="مُــهـل" />
       </div>
       <div className="ca-sub">سهّلنا عليك وصفة قهوتك — كل كيس له طريقته.</div>
 
@@ -1435,7 +1452,7 @@ function CoffeeApp() {
       )}
       {(status === "identifying" || status === "computing") && (
         <div className="ca-loading">
-          <MugLoader />
+          <DuckMascot className="duck-mascot-loading" label={status === "identifying" ? "جارٍ التعرّف على المحصول" : "جارٍ بناء الوصفة"} />
           <div className="ca-loading-text">{status === "identifying" ? "جارٍ التعرّف على المحصول..." : "جارٍ بناء الوصفة..."}</div>
         </div>
       )}
