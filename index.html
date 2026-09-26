@@ -1,4 +1,4 @@
-<!-- Version: 60 -->
+<!-- Version: 61 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -328,8 +328,10 @@
   .ca-loading-text { font-size: 13px; color: #6b5a4a; }
 
   /* التميمة الرسمية — بطة برسمة خطوط تمشي وترفع كوب القهوة */
-  .duck-mascot-brand { width: 46px; height: 46px; overflow: visible; display: block; }
-  .duck-mascot-loading { width: 96px; height: 96px; overflow: visible; display: block; }
+  /* الحجم بالتخطيط (width/height) يبقى كما هو عشان ما يزحزح النص جنبه —
+     التكبير البصري فقط عبر transform، اللي ما يأثر على مساحة العنصر بالتخطيط */
+  .duck-mascot-brand { width: 46px; height: 46px; overflow: visible; display: block; transform: scale(1.6); transform-origin: right center; }
+  .duck-mascot-loading { width: 116px; height: 116px; overflow: visible; display: block; }
   .duck-stroke { fill: none; stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
   .duck-detail { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
   .duck-fill { fill: var(--ink); }
@@ -417,7 +419,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "30.16.16.05.03.60.11.03";
+const APP_VERSION = "30.16.16.05.03.61.11.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
