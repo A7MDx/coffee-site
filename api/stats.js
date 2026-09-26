@@ -1,4 +1,4 @@
-// Version: 05
+// Version: 06
 // يجمع كل بيانات صفحة الإحصائيات بطلب واحد بدل عدة طلبات متفرقة.
 // القسم العام يرجع لأي زائر. القسم الخاص (accounts, total searches, آخر
 // التعليقات) يرجع بس لو الطالب owner أو admin.
@@ -26,11 +26,14 @@ async function getRequester(req) {
   return { userId, email: user.email, role: user.role || "user" };
 }
 
-// يرجع أعلى N عنصر من هاش عدادات (اسم -> رقم)، مرتبة تنازليًا
+// يرجع أعلى N عنصر من هاش عدادات (اسم -> رقم)، مرتبة تنازليًا. يستبعد
+// العناصر بقيمة صفر أو أقل — تبقى كحقل بالهاش حتى بعد ما تُصفَّر (Redis ما
+// يحذف الحقل تلقائيًا لما يوصل صفر)، بس ما لها معنى تظهر بقائمة "الأكثر"
 function topN(hash, n = 5) {
   if (!hash) return [];
   return Object.entries(hash)
     .map(([key, count]) => ({ key, count: Number(count) }))
+    .filter(item => item.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, n);
 }
