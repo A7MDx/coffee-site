@@ -1,4 +1,4 @@
-// Version: 09
+// Version: 10
 // نظام الحسابات: تسجيل بإيميل + كلمة مرور، دخول، خروج، والتحقق من الجلسة الحالية.
 // بدون أي خدمة إيميل خارجية وقت التسجيل — يدخل مباشرة بدون تأكيد.
 // الجلسة تُدار عبر كوكي آمن (HttpOnly) يحمل رمز جلسة عشوائي، والرمز نفسه
@@ -190,9 +190,11 @@ export default async function handler(req, res) {
       const email = normalizeEmail(req.body.email);
       const password = req.body.password || "";
 
-      if (isRateLimited(`login:${email}`)) {
-        return res.status(429).json({ error: "محاولات كثيرة جدًا، حاول بعد شوي" });
-      }
+      // تعطيل مؤقت لتحديد محاولات الدخول — تشخيص خطأ 500 بطلب المالك. أعِد هذا
+      // الشرط فور انتهاء التشخيص.
+      // if (isRateLimited(`login:${email}`)) {
+      //   return res.status(429).json({ error: "محاولات كثيرة جدًا، حاول بعد شوي" });
+      // }
 
       const lookup = await redis.hgetall(`user_by_email:${email}`);
       if (!lookup || !lookup.userId) {
