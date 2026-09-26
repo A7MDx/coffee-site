@@ -1,4 +1,4 @@
-// Version: 13
+// Version: 14
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -114,10 +114,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // تصحيح إحصائيات حار/بارد وعدد الأكواب لما العميل يحدّث الوصفة (مو بحث جديد،
-    // بس تعديل على نفس البحث) — ننقل العداد من القيمة القديمة للجديدة بدل ما نضيف
+    // تصحيح إحصائيات حار/بارد وعدد الأكواب وحجم الكوب لما العميل يحدّث الوصفة
+    // (مو بحث جديد، بس تعديل على نفس البحث) — ننقل العداد من القيمة القديمة
+    // للجديدة بدل ما نضيف، بس لو فعليًا كانت القيمة القديمة مسجّلة من قبل
+    // (وإلا نطيح بنفس خطأ عداد عدد الأكواب اللي انصلح سابقًا)
     if (req.body && req.body.action === "update-settings") {
-      const { oldTemp, newTemp, oldCupCount, newCupCount } = req.body;
+      const { oldTemp, newTemp, oldCupCount, newCupCount, oldCupSize, newCupSize } = req.body;
       const tasks = [];
       if (oldTemp && newTemp && oldTemp !== newTemp) {
         tasks.push(bumpCounter("temp", oldTemp === "cold" ? "cold" : "hot", -1));
@@ -127,12 +129,16 @@ export default async function handler(req, res) {
         tasks.push(bumpCounter("cupcount", String(oldCupCount), -1));
         tasks.push(bumpCounter("cupcount", String(newCupCount), 1));
       }
+      if (oldCupSize && newCupSize && oldCupSize !== newCupSize) {
+        tasks.push(bumpCounter("cupsize", oldCupSize, -1));
+        tasks.push(bumpCounter("cupsize", newCupSize, 1));
+      }
       await Promise.all(tasks);
       return res.status(200).json({ ok: true });
     }
 
     const {
-      coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice, cupCount,
+      coffeeType, origin, process: coffeeProcess, roastLevel, roasteryName, tempChoice, cupCount, cupSize,
       correction, previousBeansId, previousRoasteryId,
       grinderMode, grinderBrand, grinderModel, grinderCustom
     } = req.body || {};
@@ -190,6 +196,7 @@ export default async function handler(req, res) {
       coffeeProcess ? bumpCounter("process", normalizedProcess) : Promise.resolve(),
       tempChoice ? bumpCounter("temp", tempChoice === "cold" ? "cold" : "hot") : Promise.resolve(),
       cupCount ? bumpCounter("cupcount", String(cupCount)) : Promise.resolve(),
+      cupSize ? bumpCounter("cupsize", cupSize) : Promise.resolve(),
       grinderMode ? bumpCounter("grinder_mode_choice", grinderMode) : Promise.resolve(),
       ...grinderBumps,
       redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),

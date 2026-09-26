@@ -1,4 +1,4 @@
-<!-- Version: 56 -->
+<!-- Version: 57 -->
 <!-- رقم الإصدار الكامل للموقع: [analyze].[record].[rate].[package].[تعليمات].[index].[auth].[favorites] -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -431,7 +431,7 @@
 const { useState, useRef } = React;
 
 // رقم إصدار الملفات بالترتيب: analyze.record.rate.package.تعليمات.index.auth.favorites
-const APP_VERSION = "30.13.16.05.03.56.11.03";
+const APP_VERSION = "30.14.16.05.03.57.11.03";
 
 const GRINDERS = {
   "Comandante": ["C40 MK3", "C40 MK4"],
@@ -1100,6 +1100,7 @@ function CoffeeApp() {
     setStatus("done");
     setRecordedTemp(temp);
     setRecordedCupCount(cupCount);
+    setRecordedCupSize(cupSize);
 
     const roasteryForRecord =
       parsed.roastery_name && parsed.roastery_name.toLowerCase() !== "unknown" && parsed.roastery_name.trim() !== ""
@@ -1120,6 +1121,7 @@ function CoffeeApp() {
   const [updating, setUpdating] = useState(false);
   const [recordedTemp, setRecordedTemp] = useState(null);
   const [recordedCupCount, setRecordedCupCount] = useState(null);
+  const [recordedCupSize, setRecordedCupSize] = useState(null);
   const updateRecipe = async () => {
     if (grinderMode === "list" && (!grinderBrand || !grinderModel)) {
       setGrinderWarning(true);
@@ -1148,20 +1150,22 @@ function CoffeeApp() {
       const recData = await response.json();
       setResult({ ...identifyResult, ...recData });
 
-      // نصحح إحصائيات حار/بارد وعدد الأكواب بدل ما نحسبها بحث جديد
-      if ((recordedTemp && recordedTemp !== temp) || (recordedCupCount && recordedCupCount !== cupCount)) {
+      // نصحح إحصائيات حار/بارد وعدد الأكواب وحجم الكوب بدل ما نحسبها بحث جديد
+      if ((recordedTemp && recordedTemp !== temp) || (recordedCupCount && recordedCupCount !== cupCount) || (recordedCupSize && recordedCupSize !== cupSize)) {
         fetch("/api/record", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "update-settings",
             oldTemp: recordedTemp, newTemp: temp,
-            oldCupCount: recordedCupCount, newCupCount: cupCount
+            oldCupCount: recordedCupCount, newCupCount: cupCount,
+            oldCupSize: recordedCupSize, newCupSize: cupSize
           })
         }).catch(e => console.error("update-settings failed", e));
       }
       setRecordedTemp(temp);
       setRecordedCupCount(cupCount);
+      setRecordedCupSize(cupSize);
     } catch (e) {
       setErrMsg(e.message || "تعذّر تحديث الوصفة، جرّب مرة أخرى.");
     } finally {
@@ -1182,6 +1186,7 @@ function CoffeeApp() {
           roasteryName,
           tempChoice: temp,
           cupCount: isCorrection ? null : cupCount,
+          cupSize: isCorrection ? null : cupSize,
           correction: isCorrection,
           previousBeansId: isCorrection ? savedBeansId : null,
           previousRoasteryId: isCorrection ? savedRoasteryId : null,

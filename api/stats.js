@@ -1,4 +1,4 @@
-// Version: 03
+// Version: 04
 // يجمع كل بيانات صفحة الإحصائيات بطلب واحد بدل عدة طلبات متفرقة.
 // القسم العام يرجع لأي زائر. القسم الخاص (accounts, total searches, آخر
 // التعليقات) يرجع بس لو الطالب owner أو admin.
@@ -112,7 +112,7 @@ export default async function handler(req, res) {
     let privateStats = null;
     if (isPrivileged) {
       const [
-        accountsTotal, beansMetaKeysCount, commentsTotal, cupCountAll,
+        accountsTotal, beansMetaKeysCount, commentsTotal, cupCountAll, cupSizeAll,
         grinderCustomAll, refineUsage, freshnessUsage,
         favoritesTotal, grinderModeAll
       ] = await Promise.all([
@@ -120,6 +120,7 @@ export default async function handler(req, res) {
         Promise.resolve(Object.keys(beansAll || {}).length), // عدد المحاصيل الفريدة
         redis.get("comments:total"),
         redis.hgetall("cupcount:all"),
+        redis.hgetall("cupsize:all"),
         redis.hgetall("grinder_custom:all"),
         redis.get("feature_usage:refine"),
         redis.get("feature_usage:freshness"),
@@ -144,6 +145,7 @@ export default async function handler(req, res) {
         uniqueBeansCount: beansMetaKeysCount,
         commentsTotal: commentsTotal || 0,
         cupCountSplit: topN(cupCountAll, 3),
+        cupSizeSplit: topN(cupSizeAll, 3),
         grinderCustomNames: grinderCustomNames.slice(0, 30),
         refineUsageCount: refineUsage || 0,
         freshnessUsageCount: freshnessUsage || 0,
