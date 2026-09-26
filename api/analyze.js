@@ -1,4 +1,4 @@
-// Version: 28  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
+// Version: 29  (رقم إصدار هذا الملف بس — الخانة الأولى برقم الإصدار الكامل بالموقع)
 // هذا الملف يشتغل على السيرفر فقط (Vercel) — المستخدم أبدًا ما يشوف محتواه.
 // 4 أوضاع:
 //  1) mode=identify: يستقبل الصورة بس، يتعرف على المحصول (بدون وصفة) — خطوة أولى خفيفة.
@@ -238,7 +238,7 @@ ${RESULT_SCHEMA}
 ${POUR_LABEL_RULE}`
       }
     ]);
-    redis.incr("feature_usage:refine").catch(() => {}); // تسجيل استخدام، ما نوقف الرد لو فشل
+    redis.incr("feature_usage:refine").catch(e => console.error("feature_usage:refine incr failed:", e)); // تسجيل استخدام، ما نوقف الرد لو فشل
     return res.status(200).json(parsed);
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
@@ -295,7 +295,7 @@ ${JSON.stringify(beanProfile)}
       }
     ], 800);
 
-    redis.incr("feature_usage:freshness").catch(() => {});
+    redis.incr("feature_usage:freshness").catch(e => console.error("feature_usage:freshness incr failed:", e));
     return res.status(200).json({ ...parsed, daysSinceRoast });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message || "حدث خطأ غير متوقع بالسيرفر" });
