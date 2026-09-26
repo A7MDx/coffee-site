@@ -1,4 +1,4 @@
-<!-- Version: 04 -->
+<!-- Version: 05 -->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -169,6 +169,40 @@ function StatsApp() {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="st-section-title">التوزيع التفصيلي: العدد × الحجم</div>
+          <div className="st-card">
+            {(!priv.cupMatrix || Object.keys(priv.cupMatrix).length === 0) ? (
+              <div className="st-empty">ما فيه بيانات كافية بعد</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "right", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>عدد الأكواب</th>
+                    <th style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>صغير</th>
+                    <th style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>متوسط</th>
+                    <th style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>كبير</th>
+                    <th style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>الإجمالي</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.keys(priv.cupMatrix).sort().map((count) => {
+                    const sizes = priv.cupMatrix[count];
+                    const total = sizes.small + sizes.medium + sizes.large;
+                    return (
+                      <tr key={count}>
+                        <td style={{ padding: "6px 0", borderBottom: "1px solid var(--parchment)" }}>{"☕️".repeat(Number(count))} ({count})</td>
+                        <td style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--parchment)", fontFamily: "'Courier New', monospace", color: "var(--gold)" }}>{sizes.small}</td>
+                        <td style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--parchment)", fontFamily: "'Courier New', monospace", color: "var(--gold)" }}>{sizes.medium}</td>
+                        <td style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--parchment)", fontFamily: "'Courier New', monospace", color: "var(--gold)" }}>{sizes.large}</td>
+                        <td style={{ textAlign: "center", padding: "6px 0", borderBottom: "1px solid var(--parchment)", fontWeight: 700 }}>{total}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div className="st-section-title">استخدام الميزات المتقدمة</div>

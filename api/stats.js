@@ -1,4 +1,4 @@
-// Version: 04
+// Version: 05
 // يجمع كل بيانات صفحة الإحصائيات بطلب واحد بدل عدة طلبات متفرقة.
 // القسم العام يرجع لأي زائر. القسم الخاص (accounts, total searches, آخر
 // التعليقات) يرجع بس لو الطالب owner أو admin.
@@ -33,6 +33,20 @@ function topN(hash, n = 5) {
     .map(([key, count]) => ({ key, count: Number(count) }))
     .sort((a, b) => b.count - a.count)
     .slice(0, n);
+}
+
+// يفكك مفاتيح cupcombo ("2_large" مثلاً) لجدول متقاطع: لكل عدد أكواب، توزيع
+// الأحجام الثلاثة جواه — عشان نعرف مثلاً من بين كل اللي اختاروا كوب واحد،
+// كم منهم اختار كل حجم تحديدًا، مو بس مجموع كل حجم لوحده بمعزل عن العدد
+function buildCupMatrix(comboHash) {
+  const matrix = {};
+  if (!comboHash) return matrix;
+  Object.entries(comboHash).forEach(([key, count]) => {
+    const [count_, size] = key.split("_");
+    if (!matrix[count_]) matrix[count_] = { small: 0, medium: 0, large: 0 };
+    if (size in matrix[count_]) matrix[count_][size] += Number(count);
+  });
+  return matrix;
 }
 
 // يجمع عدة مفاتيح يومية (لآخر X يوم) بنفس البُعد بهاش واحد مجموع
@@ -112,15 +126,14 @@ export default async function handler(req, res) {
     let privateStats = null;
     if (isPrivileged) {
       const [
-        accountsTotal, beansMetaKeysCount, commentsTotal, cupCountAll, cupSizeAll,
+        accountsTotal, beansMetaKeysCount, commentsTotal, cupComboAll,
         grinderCustomAll, refineUsage, freshnessUsage,
         favoritesTotal, grinderModeAll
       ] = await Promise.all([
         redis.get("accounts:total"),
         Promise.resolve(Object.keys(beansAll || {}).length), // عدد المحاصيل الفريدة
         redis.get("comments:total"),
-        redis.hgetall("cupcount:all"),
-        redis.hgetall("cupsize:all"),
+        redis.hgetall("cupcombo:all"),
         redis.hgetall("grinder_custom:all"),
         redis.get("feature_usage:refine"),
         redis.get("feature_usage:freshness"),
@@ -139,13 +152,26 @@ export default async function handler(req, res) {
 
       const totalSearches = Object.values(beansAll || {}).reduce((sum, v) => sum + Number(v), 0);
 
+      // نبني من العداد المركّب: مجموع كل عدد أكواب (بغض النظر عن الحجم)،
+      // مجموع كل حجم (بغض النظر عن العدد)، والجدول المتقاطع الكامل بينهم
+      const cupMatrix = buildCupMatrix(cupComboAll);
+      const cupCountTotals = {};
+      const cupSizeTotals = { small: 0, medium: 0, large: 0 };
+      Object.entries(cupMatrix).forEach(([count, sizes]) => {
+        cupCountTotals[count] = sizes.small + sizes.medium + sizes.large;
+        cupSizeTotals.small += sizes.small;
+        cupSizeTotals.medium += sizes.medium;
+        cupSizeTotals.large += sizes.large;
+      });
+
       privateStats = {
         accountsTotal: accountsTotal || 0,
         totalSearches,
         uniqueBeansCount: beansMetaKeysCount,
         commentsTotal: commentsTotal || 0,
-        cupCountSplit: topN(cupCountAll, 3),
-        cupSizeSplit: topN(cupSizeAll, 3),
+        cupCountSplit: topN(cupCountTotals, 3),
+        cupSizeSplit: topN(cupSizeTotals, 3),
+        cupMatrix,
         grinderCustomNames: grinderCustomNames.slice(0, 30),
         refineUsageCount: refineUsage || 0,
         freshnessUsageCount: freshnessUsage || 0,

@@ -1,4 +1,4 @@
-// Version: 15
+// Version: 16
 // هذا الملف يسجّل كل عملية تحليل ناجحة بقاعدة بيانات بسيطة (Upstash Redis) —
 // يسجّل فورًا بمجرد التحليل، بغض النظر هل قيّم العميل المحصول أو لا.
 // الهدف: بناء إحصائيات مستقبلية (الأكثر بحثًا: محاصيل، دول، معالجات، محامص، حار/بارد)
@@ -148,13 +148,9 @@ export default async function handler(req, res) {
         tasks.push(bumpCounter("temp", oldTemp === "cold" ? "cold" : "hot", -1));
         tasks.push(bumpCounter("temp", newTemp === "cold" ? "cold" : "hot", 1));
       }
-      if (oldCupCount && newCupCount && oldCupCount !== newCupCount) {
-        tasks.push(bumpCounter("cupcount", String(oldCupCount), -1));
-        tasks.push(bumpCounter("cupcount", String(newCupCount), 1));
-      }
-      if (oldCupSize && newCupSize && oldCupSize !== newCupSize) {
-        tasks.push(bumpCounter("cupsize", oldCupSize, -1));
-        tasks.push(bumpCounter("cupsize", newCupSize, 1));
+      if (oldCupCount && newCupCount && oldCupSize && newCupSize && (oldCupCount !== newCupCount || oldCupSize !== newCupSize)) {
+        tasks.push(bumpCounter("cupcombo", `${oldCupCount}_${oldCupSize}`, -1));
+        tasks.push(bumpCounter("cupcombo", `${newCupCount}_${newCupSize}`, 1));
       }
       await Promise.all(tasks);
       return res.status(200).json({ ok: true });
@@ -218,8 +214,10 @@ export default async function handler(req, res) {
       origin ? bumpCounter("origin", normalizedOrigin) : Promise.resolve(),
       coffeeProcess ? bumpCounter("process", normalizedProcess) : Promise.resolve(),
       tempChoice ? bumpCounter("temp", tempChoice === "cold" ? "cold" : "hot") : Promise.resolve(),
-      cupCount ? bumpCounter("cupcount", String(cupCount)) : Promise.resolve(),
-      cupSize ? bumpCounter("cupsize", cupSize) : Promise.resolve(),
+      // عداد مركّب (عدد+حجم مع بعض بمفتاح وحد) — يخلينا نعرف مثلاً من بين
+      // كل اللي اختاروا كوب واحد، كم منهم اختار صغير/متوسط/كبير تحديدًا،
+      // مو بس مجموع كل بُعد لوحده بمعزل عن التاني
+      cupCount && cupSize ? bumpCounter("cupcombo", `${cupCount}_${cupSize}`) : Promise.resolve(),
       grinderMode ? bumpCounter("grinder_mode_choice", grinderMode) : Promise.resolve(),
       ...grinderBumps,
       redis.hset(`roastery_meta:${normalizedRoastery}`, { displayName: roasteryName || normalizedRoastery }),
